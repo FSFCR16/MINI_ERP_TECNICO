@@ -12,6 +12,7 @@ router = APIRouter(
     tags=["home"]  # ← Aquí aplicamos la etiqueta a todas las rutas de este router
 )
 
+
 @router.get("/", response_model=List[str])
 async def listar_nombres(db: Session = Depends(get_db)):
     try: 
@@ -24,7 +25,11 @@ async def listar_nombres(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+@router.get("/version")
+def version():
+    return {"version": "backend actualizado 1"}
 
+    
 @router.get("/infoTecnico/{nombre}")
 async def consultar_tecnico(nombre: str, db: Session = Depends(get_db)):
     try: 

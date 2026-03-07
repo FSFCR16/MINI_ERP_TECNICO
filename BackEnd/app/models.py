@@ -14,8 +14,6 @@ class Trabajo(Base):
     porcentaje_gil = Column(Float, nullable=True)
     adicional_dolar = Column(Float, nullable=True)
     minimo = Column(Float, nullable=True)
-    partes_gil = Column(String, nullable=True)
-    cc_tecnico = Column(String, nullable=True)
     porcentaje_cc = Column(Float, nullable=True)
     cargo_sabados = Column(Float, nullable=True)
     porcentaje_adicional_empresa = Column(Float, nullable=True)
