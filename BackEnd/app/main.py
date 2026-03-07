@@ -14,7 +14,7 @@ URLFRONT = os.getenv("URLFRONT")
 app = FastAPI()
 
 
-#Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 
 origins = ["*"]

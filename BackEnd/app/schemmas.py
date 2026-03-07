@@ -15,8 +15,6 @@ class TrabajoSchema(BaseModel):
     porcentaje_gil: float | None = None
     adicional_dolar: float | None = None
     minimo: float | None = None
-    partes_gil: str | None = None
-    cc_tecnico: str | None = None
     porcentaje_cc: float | None = None
     cargo_sabados: float | None = None
     porcentaje_adicional_empresa: float | None = None
