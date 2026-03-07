@@ -22,7 +22,7 @@ export function MobileView({
 }) {
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 p-4 flex flex-col gap-6 pb-12">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 p-4 flex flex-col gap-6 pb-16">
 
       {/* ===================== FORMULARIO (MISMA LÓGICA QUE TABLA) ===================== */}
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-lg p-4 flex flex-col gap-4">
@@ -275,7 +275,7 @@ export function MobileView({
         >
           ELIMINAR
         </button>
-        
+
         <button
           className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-green-600 font-medium shadow transition active:scale-95 active:bg-green-50"
           onClick={() => {
