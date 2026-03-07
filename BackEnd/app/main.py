@@ -16,9 +16,8 @@ URLFRONT = os.getenv("URLFRONT")
 ### CREACION CONSTRUTOR FAST API
 app = FastAPI()
 
-### CORS
-origins = [URLFRONT, "http://localhost:3000"]
-app.add_middleware(CORSMiddleware, allow_origins=[*], allow_credentials=True, 
+origins = ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=[origins], allow_credentials=True, 
                    allow_methods=["*"], allow_headers=["*"])
 
 ### RUTAS 
