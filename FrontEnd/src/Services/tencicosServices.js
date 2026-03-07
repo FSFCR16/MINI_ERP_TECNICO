@@ -1,22 +1,23 @@
+const APIURL = process.env.NEXT_PUBLIC_API_URL
+console.log(APIURL)
 export async function obtenerTecnicos() {
-    const response = await fetch("http://127.0.0.1:8000/api")
+    const response = await fetch(`${APIURL}/api`)
     if (!response.ok) {
         throw new Error("Error en la petición")
     }
 
     const data = await response.json()
     return data
-
 }
 
 export async function confirmarTecnico(nombre) {
-    const res = await fetch(`http://127.0.0.1:8000/api/infoTecnico/${nombre}`);
+    const res = await fetch(`${APIURL}/api/infoTecnico/${nombre}`);
     if (!res.ok) throw new Error("Error al traer la informacion del tecnico");
     return await res.json();
 }
 
 export async function ValidarSemanaTecnico() {
-    const res = await fetch("http://127.0.0.1:8000/api/validarSemana", {
+    const res = await fetch(`${APIURL}/api/validarSemana`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -27,7 +28,7 @@ export async function ValidarSemanaTecnico() {
 
 export async function envioTablaDB(listaRegistros) {
     console.log(listaRegistros)
-    const res = await fetch("http://127.0.0.1:8000/api/registrosDataBase", {
+    const res = await fetch(`${APIURL}/api/registrosDataBase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(listaRegistros),
@@ -36,27 +37,26 @@ export async function envioTablaDB(listaRegistros) {
     return await res.json();
 }
 
-
 export async function traerDatosCartas() {
-    const res = await fetch(`http://127.0.0.1:8000/api/informacionGeneralRegistros`);
+    const res = await fetch(`${APIURL}/api/informacionGeneralRegistros`);
     if (!res.ok) throw new Error("Error al traer la informacion para construir las cartas");
     return await res.json();
 }
 
 export async function getRegistrosPrevios(nombre, semana) {
-    const res = await fetch(`http://127.0.0.1:8000/api/obtenerRegistros/${nombre}/${semana}`);
+    const res = await fetch(`${APIURL}/api/obtenerRegistros/${nombre}/${semana}`);
     if (!res.ok) throw new Error("Error, no fue posible obtener los registros para ", nombre);
     return await res.json();
 }
 
 export async function eleiminarRegistrosDb(registros) {
   try {
-    const response = await fetch("http://localhost:8000/api/eliminarRegistrosSelecionados", {
+    const response = await fetch(`${APIURL}/api/eliminarRegistrosSelecionados`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(registros), // enviamos solo la lista
+      body: JSON.stringify(registros),
     });
 
     if (!response.ok) {
@@ -70,12 +70,12 @@ export async function eleiminarRegistrosDb(registros) {
 
 export async function exportarExcelDBPost(registros,nombre,semana) {
   try {
-    const response = await fetch(`http://localhost:8000/api/exportToExcel/${nombre}/${semana}`, {
+    const response = await fetch(`${APIURL}/api/exportToExcel/${nombre}/${semana}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(registros), // enviamos solo la lista
+      body: JSON.stringify(registros),
     });
 
     if (!response.ok) {
@@ -88,4 +88,3 @@ export async function exportarExcelDBPost(registros,nombre,semana) {
     console.error(error);
   }
 }
-
