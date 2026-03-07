@@ -1,0 +1,137 @@
+.contenedorGeneral{
+    display: grid;
+    padding: 5px;
+    grid-template-rows: 75% 25%;
+    row-gap: 1rem;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+.contenedorRow{
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
+    row-gap: 1.5rem;
+}
+
+.botonConfrimar{
+    outline: none;
+    border: none;
+    color: white;
+    border-radius: 5px;
+    background-color: #50A2FF;
+    transition: all 0.1s ease;
+    padding: 0.3rem 2rem;
+    position: fixed;
+    right: 3;
+}
+
+.botonConfrimar:hover{
+
+    background-color: transparent;
+    color: #2d9ed3;
+    border: 1px solid #50A2FF;
+
+
+}
+
+/* Barra completa */
+.contenedorRow::-webkit-scrollbar {
+  width: 2rem;
+  height: 0.32rem;
+}
+
+/* Fondo del track */
+.contenedorRow::-webkit-scrollbar-track {
+  background: #ffffff;
+  border-radius: 10px;
+}
+
+/* Parte que se mueve */
+.contenedorRow::-webkit-scrollbar-thumb {
+  background: #000000;
+  border-radius: 10px;
+}
+
+/* Hover */
+.contenedorRow::-webkit-scrollbar-thumb:hover {
+  background: #464646;
+}
+
+.tableParent {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+
+.tableParent th,
+.tableParent td {
+  border: 1px solid rgb(241, 241, 241);
+  padding: 0.3rem 0;
+}
+
+.tableParent td:hover {
+ background-color: rgb(241, 241, 241) ;
+}
+
+.tableParent td input {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 5px;
+}
+
+.tableParent td select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.head {
+  background-color: #50A2FF;
+  color: #ffffff;
+  border: 1px solid white;
+}
+
+    
+.contenedorTabla{
+    display: flex;
+    justify-content: center;
+}
+
+.tablaSuperior {
+  width: auto;
+  min-width: 700px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  overflow: hidden; /* 👈 CAMBIO IMPORTANTE */
+  box-shadow: rgba(60, 64, 67, 0.3) 0px 1px 2px 0px,
+              rgba(60, 64, 67, 0.15) 0px 2px 6px 2px;
+}
+
+.tablaSuperior th {
+  background-color: #50A2FF;  /* tu azul */
+  color: white;
+  padding: 8px 15px;         /* MÁS ESPACIO HORIZONTAL */
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+  letter-spacing: 0.5px;
+  border: 1px solid rgb(241, 241, 241);
+}
+
+
+.contenedorTabla {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
