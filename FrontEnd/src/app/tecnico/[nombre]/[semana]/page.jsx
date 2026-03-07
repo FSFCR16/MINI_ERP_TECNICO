@@ -9,6 +9,7 @@ import {MobileView} from "./components/MobileView.jsx";
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js';
 import { ContentList } from '../../components_modal/content_list.jsx';
 import { ContentNoList } from '../../components_modal/content_noList.jsx';
+import { LoadingOverlay } from '@/Components/loadingOverlay.jsx';
 
 
 export default function Page() {
@@ -55,6 +56,7 @@ export default function Page() {
             confirmText: "ACEPTAR",
             cancelText: "CANCELAR",
             hasFunction:true,
+            showBtn:true,
             modalRender:1,
             functionName:() => finalizarTabla()
         },
@@ -64,6 +66,7 @@ export default function Page() {
             confirmText: "EXPORTAR",
             cancelText: "CANCELAR",
             modalRender:1,
+            showBtn:true,
             hasFunction:true,
             functionName: () => exportarExcelDB()
         },
@@ -169,29 +172,6 @@ export default function Page() {
         }
 
     }, [data]);
-
-    if (loading) {
-    return (
-        <div className="w-full flex justify-center">
-            <div
-                className="
-                w-full max-w-2xl
-                bg-white/60 backdrop-blur-xl
-                border border-white/40
-                rounded-3xl
-                shadow-2xl
-                px-10 py-16
-                text-center
-                "
-            >
-                <div className="animate-pulse text-slate-700 text-lg font-medium">
-                Cargando...
-                </div>
-            </div>
-        </div>
-    );
-    }
-
 
     if (error) {
         return (
@@ -340,8 +320,10 @@ export default function Page() {
 
     const exportarExcelDB = async () => {
         try {
+            setIsOpen(false)
+            setLoading(true)
             const regustrosGuardados = listRegistro.filter(e => (e.id_registro))
-            if(regustrosGuardados){
+            if(!regustrosGuardados.length){
                 setModalTipo("SIN_REGISTROS")
                 setIsOpen(true)
                 return
@@ -358,12 +340,13 @@ export default function Page() {
 
         } catch (error) {
             console.error("Error exportando:", error)
+        }finally{
+            setLoading(false)
         }
-
-        setIsOpen(false)
     }
     return (
     <>
+        {loading && <LoadingOverlay />}
         {isMobile ? (
             <MobileView
                 listRegistro={listRegistro}

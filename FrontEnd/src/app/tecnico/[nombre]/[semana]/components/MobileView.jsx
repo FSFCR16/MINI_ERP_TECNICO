@@ -22,7 +22,7 @@ export function MobileView({
 }) {
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 p-4 flex flex-col gap-6 pb-28">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 p-4 flex flex-col gap-6 pb-12">
 
       {/* ===================== FORMULARIO (MISMA LÓGICA QUE TABLA) ===================== */}
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 rounded-2xl shadow-lg p-4 flex flex-col gap-4">
@@ -163,7 +163,7 @@ export function MobileView({
 
         <button
           onClick={handleBtnAgregar}
-          className="mt-2 py-2 rounded-xl bg-white/60 border border-white/40 text-sky-600 font-medium shadow"
+          className="mt-2 py-2 rounded-xl bg-white/60 border border-white/40 text-sky-600 font-medium shadow transition active:scale-95 active:brightness-95"
         >
           AGREGAR
         </button>
@@ -269,9 +269,15 @@ export function MobileView({
 
       {/* ===================== BOTONES FIJOS ===================== */}
       <div className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-xl border-t border-white/40 p-3 flex justify-between gap-2">
-
         <button
-          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-green-600 font-medium shadow"
+          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-rose-500 font-medium shadow transition active:scale-95 active:bg-rose-50"
+          onClick={eliminarSeleccionados}
+        >
+          ELIMINAR
+        </button>
+        
+        <button
+          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-green-600 font-medium shadow transition active:scale-95 active:bg-green-50"
           onClick={() => {
             setIsOpen(true);
             setModalTipo("EXPORTAR");
@@ -281,20 +287,13 @@ export function MobileView({
         </button>
 
         <button
-          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-sky-600 font-medium shadow"
+          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-sky-600 font-medium shadow transition active:scale-95 active:bg-sky-50"
           onClick={() => {
             setIsOpen(true);
             setModalTipo("FINALIZAR");
           }}
         >
           FINALIZAR
-        </button>
-
-        <button
-          className="flex-1 py-2 text-xs rounded-xl bg-white/50 border border-white/40 text-rose-500 font-medium shadow"
-          onClick={eliminarSeleccionados}
-        >
-          ELIMINAR
         </button>
 
       </div>
