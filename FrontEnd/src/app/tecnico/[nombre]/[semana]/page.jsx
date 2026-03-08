@@ -304,6 +304,7 @@ export default function Page() {
             const response = await exportarExcelDBPost(regustrosGuardados,nombre,semana);
 
             const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
             a.download = `${nombre}_${semana}.xlsx`;
