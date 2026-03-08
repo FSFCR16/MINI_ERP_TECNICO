@@ -1,17 +1,25 @@
 import { DialogTitle } from '@headlessui/react'
 
 export function ContentList({ message, title, btnTextCancel, setIsOpen, modalTipo }) {
-    console.log(message)
+
   return (
     <>
       <DialogTitle className="text-base font-semibold text-slate-800 mb-2">
         {title}
       </DialogTitle>
 
-      {message.map((e, index) => (
-        modalTipo === "NOTAS" 
-          ? <p key={index}>{index + 1}. {e}</p>
-          : <p key={e.label}>{e.label}: {e.message}</p>
+      {Array.isArray(message) && message.map((e, index) => (
+        modalTipo === "NOTAS"
+          ? (
+            <p className="text-slate-700 text-sm" key={index}>
+              {index + 1}. {e}
+            </p>
+          )
+          : (
+            <p className="text-slate-700 text-sm" key={e.label}>
+              {e.label}: {e.message}
+            </p>
+          )
       ))}
 
       <div className="mt-6 flex justify-end gap-3">
