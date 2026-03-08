@@ -6,7 +6,9 @@ export function ContentNoList({message, title, btnTextConfirm, btnTextCancel, se
             <DialogTitle className="text-base font-semibold text-slate-800 mb-4">
                 {title}
             </DialogTitle>
-                {message}
+                <p className="text-slate-700 text-sm">
+                    {message}
+                </p>
             <div className="mt-6 flex justify-end gap-3">
                 <button
                 onClick={() => setIsOpen(false)}
