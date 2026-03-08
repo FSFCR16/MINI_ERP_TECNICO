@@ -31,6 +31,8 @@ export default function Page() {
     const [notas, setNotas] = useState([]);
     const inputsReferencias = useRef([])
     const [registrosLocalStroge, setRegistrosLocalStorage] = useState([])
+    const [activeCell, setActiveCell] = useState(null)
+    const [activeHeader, setActiveHeader] = useState(null)
 
     const configModal = {
         "FINALIZAR":{
@@ -255,6 +257,8 @@ export default function Page() {
     }
 
     const finalizarTabla = async () => {
+        setIsOpen(false)
+        setLoading(true)
         try {
             const registrosFiltrados = listRegistro.filter(
             reg => !reg.id_registro
@@ -268,7 +272,6 @@ export default function Page() {
         }
         localStorage.removeItem(`registrosTemporales_${nombre}_${semana}`)
         setRegistrosLocalStorage([])
-        setIsOpen(false)
     }
 
     const clickExportExcel = () => {
@@ -356,46 +359,126 @@ export default function Page() {
                 <section className="w-full flex-1 min-h-0 overflow-hidden rounded-2xl shadow-xl bg-white/70 backdrop-blur-xl border border-white/40">
 
                     <div className="w-full h-full overflow-auto custom-scroll">
-                        <table className="min-w-[900px] w-full border-collapse">
+                        <table className="w-full border-collapse table-fixed">
 
+                            {/* HEADER */}
                             <thead className="bg-white/60 backdrop-blur-md text-slate-700 sticky top-0 z-10">
-                            <tr>
-                                {columnasTablaGeneral.map((col) => (
-                                <th
-                                    key={col.key}
-                                    className="px-2 py-2 text-[11px] font-semibold border-b border-white/40 whitespace-nowrap text-center"
-                                >
-                                    {col.label}
-                                </th>
-                                ))}
-                            </tr>
+
+                                <tr>
+                                    {columnasTablaGeneral.map((col, i) => {
+
+                                        const headerKey = `header-${i}`
+
+                                        return (
+
+                                            <th
+                                            key={col.key}
+                                            className="px-1 py-1 text-[10px] font-semibold border-b border-white/40 text-center cursor-pointer hover:bg-white/40 transition"
+                                            style={{ width: i === 0 ? "32px" : "auto" }}
+                                            onClick={() =>
+                                            setActiveHeader(activeHeader === headerKey ? null : headerKey)
+                                            }
+                                            >
+
+                                                <div className="w-full overflow-hidden whitespace-nowrap">
+
+                                                    <span
+                                                    className={`block w-full ${
+                                                    activeHeader === headerKey
+                                                    ? "animate-scrollText"
+                                                    : "truncate"
+                                                    }`}
+                                                    >
+                                                    {col.label}
+                                                    </span>
+
+                                                </div>
+
+                                            </th>
+
+                                        )
+
+                                    })}
+                                </tr>
+
                             </thead>
 
+                            {/* BODY */}
                             <tbody>
-                            {listRegistro.map((row, indexrow) => (
-                                <tr
-                                key={indexrow}
-                                className="hover:bg-white/40 transition duration-200"
-                                >
-                                {columnasTablaGeneral.map((col, indexCol) => (
-                                    <td
-                                    key={indexCol}
-                                    className="px-2 py-1 text-[13px] border-b border-white/30 text-center"
+
+                                {listRegistro.map((row, indexrow) => (
+
+                                    <tr
+                                    key={indexrow}
+                                    className={`transition duration-200 hover:bg-white/40
+                                    ${elementosAEliminar.includes(row) ? "bg-blue-50/60" : ""}
+                                    `}
                                     >
-                                    <input
-                                        type={typeof col.component === "function"? "text":col.component}
-                                        value={row[col.key]}
-                                        readOnly
-                                        className="w-full bg-transparent outline-none truncate focus:whitespace-normal"
-                                        onChange={() => {
-                                        toggleSeleccion(row);
-                                        }}
-                                        checked={elementosAEliminar.includes(row) ?? false}
-                                    />
-                                    </td>
+
+                                        {columnasTablaGeneral.map((col, indexCol) => {
+
+                                            const cellKey = `${indexrow}-${indexCol}`
+                                            const value = row[col.key]
+                                            const isTotal = col.key === "total"
+
+                                            return (
+
+                                                <td
+                                                key={indexCol}
+                                                className={`px-1 py-1 border-b border-white/30
+                                                ${indexCol === 0 ? "text-center w-[32px]" : "text-right"}
+                                                `}
+                                                >
+
+                                                {/* CHECKBOX */}
+                                                {indexCol === 0 ? (
+
+                                                    <input
+                                                    type="checkbox"
+                                                    checked={elementosAEliminar.includes(row)}
+                                                    onChange={() => toggleSeleccion(row)}
+                                                    className="w-3.5 h-3.5 cursor-pointer"
+                                                    />
+
+                                                ) : (
+
+                                                    <div
+                                                    onClick={() =>
+                                                    setActiveCell(activeCell === cellKey ? null : cellKey)
+                                                    }
+                                                    className={`flex justify-start overflow-hidden whitespace-nowrap text-ellipsis cursor-pointer text-[12px]
+
+                                                    ${
+                                                    isTotal
+                                                    ? Number(value) < 0
+                                                    ? "text-rose-500 bg-rose-50 px-1 rounded"
+                                                    : "text-green-600 bg-green-50 px-1 rounded"
+                                                    : "text-slate-700"
+                                                    }
+                                                    `}
+                                                    >
+
+                                                        <span
+                                                        className={`inline-block ${
+                                                        activeCell === cellKey ? "animate-scrollText" : "truncate"
+                                                        }`}
+                                                        >
+                                                        {value}
+                                                        </span>
+                                                    </div>
+
+                                                )}
+
+                                                </td>
+
+                                            )
+
+                                        })}
+
+                                    </tr>
+
                                 ))}
-                                </tr>
-                            ))}
+
                             </tbody>
 
                         </table>
@@ -407,21 +490,47 @@ export default function Page() {
                 <section className="w-full flex flex-col gap-4">
 
                     <div className="w-full overflow-auto custom-scroll rounded-2xl bg-white/70 backdrop-blur-xl border border-white/40 shadow-lg">
-                        <table className="min-w-[900px] w-full border-separate border-spacing-0 text-sm">
+                        <table className="min-w-[900px] w-full border-collapse table-fixed text-sm">
 
                             <thead className="bg-white/60 backdrop-blur-md text-slate-700">
-                            <tr>
-                                {columnasTablaEditable.map(col => (
-                                <th
-                                    key={col.key}
-                                    className="px-2 py-2 text-[11px] font-semibold border-b border-white/40 whitespace-nowrap text-center"
-                                >
-                                    {col.label}
-                                </th>
-                                ))}
-                            </tr>
-                            </thead>
+                                <tr>
+                                    {columnasTablaEditable.map((col, i) => {
 
+                                        const headerKey = `headerEditable-${i}`
+
+                                        return (
+
+                                            <th
+                                            key={col.key}
+                                            onClick={() =>
+                                            setActiveHeader(activeHeader === headerKey ? null : headerKey)
+                                            }
+                                            className="px-2 py-1 text-[11px] font-semibold border-b border-white/40 text-center cursor-pointer hover:bg-white/40 transition"
+                                            >
+
+                                                <div className="w-full overflow-hidden whitespace-nowrap">
+
+                                                    <span
+                                                    className={`block w-full ${
+                                                    activeHeader === headerKey
+                                                    ? "animate-scrollText"
+                                                    : "truncate"
+                                                    }`}
+                                                    >
+
+                                                    {col.label}
+
+                                                    </span>
+
+                                                </div>
+
+                                            </th>
+
+                                        )
+
+                                    })}
+                                </tr>
+                            </thead>
                             <tbody>
                             <tr>
                                 {columnasTablaEditable.map((col, index) => {

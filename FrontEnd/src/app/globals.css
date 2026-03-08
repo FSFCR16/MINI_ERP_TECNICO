@@ -18,6 +18,14 @@
     --foreground: #ededed;
   }
 }
+@keyframes scrollText {
+0% { transform: translateX(0); }
+100% { transform: translateX(-50%); }
+}
+
+.animate-scrollText{
+animation: scrollText 4s linear infinite alternate;
+}
 
 body {
   background: var(--background);

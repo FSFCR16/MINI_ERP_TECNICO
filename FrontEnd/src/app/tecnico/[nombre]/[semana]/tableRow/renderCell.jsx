@@ -31,6 +31,8 @@ export const CellRenderer = ({
     typeof o === "string" ? { value: o, label: o } : o
   );
 
+  console.log(options)
+
   // referencia a la celda
   const baseRef = (el) => {
     if (!el) return;
@@ -103,7 +105,6 @@ export const CellRenderer = ({
             className={`${isMobile ? baseClasesMovilSelect:baseClassesSelect} text-[13px] px-2 py-1`}
           >
             <option value="">Seleccione...</option>
-
             {options.map((opt, i) => (
               <option key={i} value={opt.value}>
                 {opt.label}
