@@ -37,7 +37,7 @@ export const columnasBase = [
 
         {
         key: "job_name",
-        label: "JOB NAME",
+        label: "ID JOB",
         component: "input",
         inputType: "text"
         },

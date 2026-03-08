@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Trabajo, SemanaTecnico,registrosSchemma
-from app.utils import semana_actual,obtener_rango_semana
+from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel
 from app.schemmas import TrabajoSchema,TecnicoRequest,SemanaTecnicoSchemaFront,ResumenSemanaSchema
 from datetime import date, timedelta
 from typing import List
@@ -228,6 +228,8 @@ def exporToExcelController(registros:List[SemanaTecnicoSchemaFront],nombre:str,s
         "Job Name": r.job_name,
         "Valor Servicio": r.valor_servicio,
         "Tipo Pago": r.tipo_pago,
+        "valor efectivo":r.valor_efectivo,
+        "valor tarjeta":r.valor_tarjeta,
         "Partes Gil": r.partes_gil,
         "Partes Tecnico": r.partes_tecnico,
         "Tech": r.tech,
@@ -238,9 +240,19 @@ def exporToExcelController(registros:List[SemanaTecnicoSchemaFront],nombre:str,s
         } for r in registrosDB
     ]
     df = pd.DataFrame(dataFrameRegistros)
-    output = BytesIO()
-    df.to_excel(output, index=False, engine="openpyxl")
-    output.seek(0)
+    fila_inicio= len(df) + 4
     print(df)
+    dfResultado = construcionTablaResultado(df)
+    print(dfResultado)
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+
+        df.to_excel(writer, index=False)
+
+        dfResultado.to_excel(writer, startrow=fila_inicio, index=False)
+
+    output = estilizar_excel(output, df, dfResultado, fila_inicio)
+    output.seek(0)
     nombre_archivo = f"{nombre}_semana_{semana}.xlsx"
     return output, nombre_archivo

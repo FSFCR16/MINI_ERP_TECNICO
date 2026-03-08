@@ -22,7 +22,6 @@ export default function Page() {
     const [data, setData] = useState([]);
     const [elementosAEliminar, setElementosAEliminar] = useState([]);
     const [rowData, setRow] = useState({});
-    const [selectedJob, setJob] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [listRegistro, setListRegistros] = useState([])
@@ -148,10 +147,6 @@ export default function Page() {
         setRow(base);
         setNotas(base?.notas)
         setDatModificada(base)
-
-        if (data.length === 1) {
-            setJob(data[0].job);
-        }
 
     }, [data]);
 

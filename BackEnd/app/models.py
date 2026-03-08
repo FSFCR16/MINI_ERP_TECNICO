@@ -35,6 +35,8 @@ class registrosSchemma(Base):
     job_name = Column(String, nullable=True)
     valor_servicio = Column(Float, nullable=True)
     tipo_pago = Column(String, nullable=True)
+    valor_tarjeta = Column(Float, nullable=True)
+    valor_efectivo=Column(Float, nullable=True)
     partes_gil = Column(Float, nullable=True)
     partes_tecnico = Column(Float, nullable=True)
     tech = Column(Float, nullable=True)
