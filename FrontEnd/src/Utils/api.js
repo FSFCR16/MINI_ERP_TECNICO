@@ -1,6 +1,7 @@
 export function procesarDatosTecnico(datos, datosPrevios = null) {
   // Función que crea la base de un trabajo
   const crearBase = (dato) => {
+    console.log(dato)
     const base = {
       id: "",
       id_tecnico: dato.id,
@@ -11,7 +12,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
       valor_servicio: 0,
       minimo: dato.minimo,
       opciones_pago: ["CASH", "CC", "MIXTO"],
-      tipo_pago: "",
+      tipo_pago: "CASH",
       valor_tarjeta: 0,
       valor_efectivo: 0,
       porcentaje_cc: dato.porcentaje_cc,
@@ -22,6 +23,8 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
       total: 0,
       adicional_dolar: dato.adicional_dolar,
       id_registro:datosPrevios?.id ?? null,
+      aplica_dolar_empresa:dato.porcentaje_adicional_empresa > 0? "SI": "NO",
+      dolar_adicional_empresa: dato.porcentaje_adicional_empresa,
       notas: []
     };
 
@@ -29,7 +32,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
     // Notas dinámicas
     if (dato.porcentaje_adicional_empresa !== 0) {
       base.notas.push(
-        `Este técnico tiene un porcentaje adicional para ciertos servicios de ${dato.porcentaje_adicional_empresa}%`
+        `Este técnico tiene un porcentaje adicional para ciertos servicios de ${dato.porcentaje_adicional_empresa}$`
       );
     }
     if (dato.cargo_sabados !== 0) {
@@ -110,11 +113,15 @@ function cash(params) {
   const valorReal = params.valor_servicio - params.partes_tecnico - params.partes_gil
   const valorDescontar = params.tech ? valorReal - params.tech  : (valorReal * (porcentaje_Gil/100))
 
+  if ((params.valor_servicio <= params.minimo + 25)){
+    params.total = formatearNumero((valorReal/2)+params.adicional_dolar)
+    return params
+  }
+
   if(procesoAcabo > params.minimo){
-    console.log(valorDescontar + params.adicional_dolar)
     params.total = formatearNumero(valorDescontar + params.partes_gil + params.adicional_dolar)
   }else if (procesoAcabo > 0 && procesoAcabo <= params.minimo){
-    params.total = formatearNumero((params.valor_servicio-params.minimo) + params.adicional_dolar)
+    params.total = formatearNumero((valorReal-params.minimo) + params.adicional_dolar)
   }
 
   return params
@@ -123,10 +130,16 @@ function cash(params) {
 function CC(params) {
   const porcentaje_T = params.porcentaje_tecnico // 30
   const descuentoTarjeta = params.valor_servicio * (params.porcentaje_cc/100) // 8
+  console.log(descuentoTarjeta)
   const valorRealTarjeta = params.valor_servicio-descuentoTarjeta - params.partes_tecnico - params.partes_gil // 192
   const procesoAcabo= (valorRealTarjeta * (porcentaje_T/100))  // 60
   const valorDescontar = params.tech ? valorRealTarjeta - params.tech : procesoAcabo
-  console.log(porcentaje_T,descuentoTarjeta,valorRealTarjeta,procesoAcabo,valorDescontar)
+  console.log(params.minimo-descuentoTarjeta,params.partes_tecnico,params.partes_gil,params.adicional_dolar)
+
+  if ((params.valor_servicio <= params.minimo + 25)){
+    params.total = formatearNumero(((valorRealTarjeta/2)-params.adicional_dolar+ params.partes_tecnico)* -1)
+    return params
+  }
 
   if(procesoAcabo > params.minimo){
     params.total = formatearNumero((valorDescontar + params.partes_tecnico - params.adicional_dolar) * -1)
@@ -139,15 +152,26 @@ function CC(params) {
 
 function mixto(params) {
   const valorServicioReal = params.valor_servicio
+  console.log(params)
+  const paramsProvicionalCash = {
+    ...params,               
+    valor_servicio: params.valor_tarjeta  
+  };
 
-  params.valor_servicio = params.valor_efectivo
-  const valorCash = cash(params)
+  const valorCash = cash(paramsProvicionalCash);
+  console.log(valorCash)
 
-  params.valor_servicio = params.valor_tarjeta
-  const valorCC =  CC(params)
-
+  const paramsProvicionalCC = {
+    ...params,                
+    adicional_dolar: 0,
+    partes_gil: 0,
+    partes_tecnico: 0,
+    valor_servicio: params.valor_tarjeta  
+  };
   params.valor_servicio = valorServicioReal
-  
+
+  const valorCC = CC(paramsProvicionalCC);
+  console.log(valorCash.total, valorCC.total)
   params.total = valorCash.total + valorCC.total
 
   return params
@@ -156,14 +180,10 @@ function mixto(params) {
 
 
 export function procesarData(data){
-  
+    data.aplica_dolar_empresa === "SI" ? data.adicional_dolar = data.dolar_adicional_empresa: data
     if (data.tipo_pago.toLowerCase() == "cc") return CC(data)
     if (data.tipo_pago.toLowerCase() == "cash") return cash(data)
     return mixto(data)
-}
-
-export function validarDatos(data){
-
 }
 
 

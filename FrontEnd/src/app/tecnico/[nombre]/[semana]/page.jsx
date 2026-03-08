@@ -10,26 +10,10 @@ import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js';
 import { ContentList } from '../../components_modal/content_list.jsx';
 import { ContentNoList } from '../../components_modal/content_noList.jsx';
 import { LoadingOverlay } from '@/Components/loadingOverlay.jsx';
-
+import { columnasBase } from './tableRow/columnasBase.jsx';
+import { CellRenderer } from './tableRow/renderCell.jsx';
 
 export default function Page() {
-
-    const columnasBase = [
-        { key: "check_box", label: "", hideOn: ["editable"], tipo:"checkbox"},
-        { key: "nombre", label: "NOMBRE", disableOn: ["editable"], tipo:"text"},
-        { key: "job", label: "JOB", tipo:"text" },
-        { key: "job_name", label: "JOB NAME", tipo:"text" },
-        { key: "valor_servicio", label: "VALOR SERVICIO",tipo:"number" },
-        { key: "tipo_pago", label: "TIPO DE PAGO", tipo:"text"},
-        { key: "valor_tarjeta", label: "VALOR TARJETA", disableOnPago: ["CC", "CASH"], tipo:"number"},
-        { key: "valor_efectivo", label: "VALOR EFECTIVO", disableOnPago: ["CC", "CASH"], tipo:"number" },
-        { key: "partes_gil", label: "PARTES GIL", tipo:"number"},
-        { key: "partes_tecnico", label: "PARTES TECNICO", tipo:"number"},
-        { key: "tech", label: "TECH", tipo:"number"},
-        { key: "porcentaje_tecnico", label: "PORCENTAJE TECNICO", tipo:"number"},
-        { key: "porcentaje_cc", label: "PORCENTAJE CC", tipo:"number"},
-        { key: "total", label: "TOTAL", hideOn: ["editable"], tipo:"number"},
-    ];
 
     const { nombre, semana} = useParams();
     const [erroresCampos, setErroresCampos] = useState([])
@@ -159,9 +143,7 @@ export default function Page() {
             return;
         }
 
-        if (data.length === 1) {
-            base = procesarDatosTecnico(data[0])
-        }
+        base = procesarDatosTecnico(data[0])
 
         setRow(base);
         setNotas(base?.notas)
@@ -197,15 +179,6 @@ export default function Page() {
     const tieneError = (columna) => {
         return erroresCampos.some(e => e.key === columna);
     }
-
-    const handleJobChange = (e) => {
-        const jobSeleccionado = e.target.value;
-        setJob(jobSeleccionado);
-        const objetoEncontrado = data.find(item => item.job === jobSeleccionado);
-        const resultObjeto = procesarDatosTecnico(objetoEncontrado)
-        setRow(resultObjeto || {});
-        setNotas(resultObjeto?.notas)
-    };
 
     const mapearErroresZod= (error)  => {
         const errores = []
@@ -344,6 +317,14 @@ export default function Page() {
             setLoading(false)
         }
     }
+
+    const baseRef = (index, el) => {
+        if (!inputsReferencias.current[0]) {
+            inputsReferencias.current[0] = [];
+        }
+        inputsReferencias.current[0][index] = el;
+    };
+
     return (
     <>
         {loading && <LoadingOverlay />}
@@ -355,10 +336,7 @@ export default function Page() {
                 columnasDeshabilitdasGenerales={columnasDeshabilitdasGenerales}
                 rowData={rowData}
                 setRow={setRow}
-                selectedJob={selectedJob}
-                handleJobChange={handleJobChange}
                 data={data}
-                inputsReferencias={inputsReferencias}
                 moverseEntreCeldas={moverseEntreCeldas}
                 handleBtnAgregar={handleBtnAgregar}
                 toggleSeleccion={toggleSeleccion}
@@ -367,6 +345,10 @@ export default function Page() {
                 setIsOpen={setIsOpen}
                 setModalTipo={setModalTipo}
                 tieneError={tieneError}
+                baseRef={baseRef}
+                procesarDatosTecnico={procesarDatosTecnico}
+                setNotas={setNotas}
+                isMobile={isMobile}
             />
         ) : (
         <div className="h-screen w-full flex justify-center overflow-hidden bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 px-4 py-4">
@@ -381,7 +363,7 @@ export default function Page() {
 
                             <thead className="bg-white/60 backdrop-blur-md text-slate-700 sticky top-0 z-10">
                             <tr>
-                                {columnasTablaGeneral.map(col => (
+                                {columnasTablaGeneral.map((col) => (
                                 <th
                                     key={col.key}
                                     className="px-2 py-2 text-[11px] font-semibold border-b border-white/40 whitespace-nowrap text-center"
@@ -404,7 +386,7 @@ export default function Page() {
                                     className="px-2 py-1 text-[13px] border-b border-white/30 text-center"
                                     >
                                     <input
-                                        type={col.tipo}
+                                        type={typeof col.component === "function"? "text":col.component}
                                         value={row[col.key]}
                                         readOnly
                                         className="w-full bg-transparent outline-none truncate focus:whitespace-normal"
@@ -446,122 +428,24 @@ export default function Page() {
                             <tbody>
                             <tr>
                                 {columnasTablaEditable.map((col, index) => {
-
-                                if (col.key === "job") {
-                                    if (data.length > 1) {
                                     return (
                                         <td key={col.key} className="px-2 py-1">
-                                        <select
-                                            ref={(el) => {
-                                            if (!inputsReferencias.current[0]) {
-                                                inputsReferencias.current[0] = [];
-                                            }
-                                            inputsReferencias.current[0][index] = el;
-                                            }}
-                                            value={selectedJob}
-                                            onChange={handleJobChange}
-                                            onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                                            className={`w-full px-2 py-1 text-[13px] rounded-lg border backdrop-blur-md outline-none
-                                            ${tieneError(col.key) 
-                                            ? "border-red-400 bg-red-50/70"
-                                            : "border-white/40 bg-white/60"}
-                                            `}
-                                        >
-                                            <option value="">Seleccione...</option>
-                                            {data.map((item, index) => (
-                                            <option key={index} value={item.job}>
-                                                {item.job}
-                                            </option>
-                                            ))}
-                                        </select>
+                                            <CellRenderer
+                                            col={col}
+                                            index={index}
+                                            rowData={rowData}
+                                            setRow={setRow}
+                                            data={data}
+                                            tieneError={tieneError}
+                                            setCellRef={baseRef}
+                                            moverseEntreCeldas={moverseEntreCeldas}
+                                            columnasDeshabilitdasGenerales={columnasDeshabilitdasGenerales}
+                                            procesarDatosTecnico={procesarDatosTecnico}
+                                            setNotas = {setNotas}
+                                            isMobile={isMobile}
+                                            />
                                         </td>
                                     );
-                                    }
-
-                                    return (
-                                    <td key={col.key} className="px-2 py-1">
-                                        <input
-                                        onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                                        ref={(el) => {
-                                            if (!inputsReferencias.current[0]) {
-                                            inputsReferencias.current[0] = [];
-                                            }
-                                            inputsReferencias.current[0][index] = el;
-                                        }}
-                                        value={rowData.job || ""}
-                                        disabled
-                                        />
-                                    </td>
-                                    );
-                                }
-
-                                if (col.key === "tipo_pago") {
-                                    return (
-                                    <td key={col.key} className="px-2 py-1">
-                                        <select
-                                        onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                                        ref={(el) => {
-                                            if (!inputsReferencias.current[0]) {
-                                            inputsReferencias.current[0] = [];
-                                            }
-                                            inputsReferencias.current[0][index] = el;
-                                        }}
-                                        value={rowData.tipo_pago ?? ""}
-                                        onChange={(e) => {
-                                            setRow({
-                                            ...rowData,
-                                            tipo_pago: e.target.value
-                                            });
-                                        }}
-                                        className={`w-full px-2 py-1 text-[13px] rounded-lg border backdrop-blur-md outline-none transition
-                                        ${tieneError(col.key) 
-                                        ? "border-red-400 bg-red-50/70 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
-                                        : "border-white/40 bg-white/60"}
-                                        `}
-                                        >
-                                        <option value="">Seleccione...</option>
-                                        {!rowData.opciones_pago || rowData.opciones_pago.map((item, index) => (
-                                            <option key={index} value={item}>
-                                            {item}
-                                            </option>
-                                        ))}
-                                        </select>
-                                    </td>
-                                    );
-                                }
-
-                                return (
-                                    <td key={col.key} className="px-2 py-1">
-                                    <input
-                                        type={col.tipo}
-                                        onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                                        ref={(el) => {
-                                        if (!inputsReferencias.current[0]) {
-                                            inputsReferencias.current[0] = [];
-                                        }
-                                        inputsReferencias.current[0][index] = el;
-                                        }}
-                                        disabled={columnasDeshabilitdasGenerales.includes(col.key)}
-                                        value={rowData[col.key] == 0 ? "" : rowData[col.key] ?? ""}
-                                        onChange={(e) => {
-                                        const { value, type } = e.target;
-
-                                        setRow({
-                                            ...rowData,
-                                            [col.key]: type === "number" && value !== ""
-                                            ? Number(value)
-                                            : value
-                                        });
-                                        }}
-                                        className={`w-full p-1 text-[13px] rounded-lg outline-none text-center transition
-                                        ${tieneError(col.key)
-                                        ? "bg-red-50/70 border border-red-400 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
-                                        : "bg-transparent hover:bg-slate-100"}
-                                        `}
-                                    />
-                                    </td>
-                                );
-
                                 })}
                             </tr>
                             </tbody>

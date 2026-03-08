@@ -1,5 +1,5 @@
 "use client";
-
+import { CellRenderer } from "../tableRow/renderCell";
 export function MobileView({
   rowData,
   setRow,
@@ -18,7 +18,11 @@ export function MobileView({
   eliminarSeleccionados,
   setIsOpen,
   setModalTipo,
-  tieneError
+  tieneError,
+  baseRef,
+  procesarDatosTecnico,
+  setNotas,
+  isMobile
 }) {
 
   return (
@@ -32,133 +36,153 @@ export function MobileView({
         </h2>
 
         {columnasTablaEditable.map((col, index) => {
-
-          if (col.key === "check_box") return null;
-
-          /* ===================== JOB ===================== */
-          if (col.key === "job") {
-
-            if (data.length > 1) {
-              return (
-                <div key={col.key} className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-600 font-medium">
-                    {col.label}
-                  </label>
-
-                  <select
-                    ref={(el) => {
-                      if (!inputsReferencias.current[0]) {
-                        inputsReferencias.current[0] = [];
-                      }
-                      inputsReferencias.current[0][index] = el;
-                    }}
-                    value={selectedJob}
-                    onChange={handleJobChange}
-                    onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                    className="px-3 py-2 rounded-xl border border-white/40 bg-white/60 backdrop-blur-md outline-none text-sm"
-                  >
-                    <option value="">Seleccione...</option>
-                    {data.map((item, i) => (
-                      <option key={i} value={item.job}>
-                        {item.job}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              );
-            }
-
-            return (
-              <div key={col.key} className="flex flex-col gap-1">
-                <label className="text-xs text-slate-600 font-medium">
-                  {col.label}
-                </label>
-                <input
-                  disabled
-                  value={rowData.job || ""}
-                  className="px-3 py-2 rounded-xl bg-white/50 text-sm"
-                />
-              </div>
-            );
-          }
-
-          /* ===================== TIPO PAGO ===================== */
-          if (col.key === "tipo_pago") {
-            return (
-              <div key={col.key} className="flex flex-col gap-1">
-                <label className="text-xs text-slate-600 font-medium">
-                  {col.label}
-                </label>
-
-                <select
-                  ref={(el) => {
-                    if (!inputsReferencias.current[0]) {
-                      inputsReferencias.current[0] = [];
-                    }
-                    inputsReferencias.current[0][index] = el;
-                  }}
-                  value={rowData.tipo_pago ?? ""}
-                  onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                  onChange={(e) => {
-                    setRow({
-                      ...rowData,
-                      tipo_pago: e.target.value
-                    });
-                  }}
-                  className={`px-3 py-2 rounded-xl border border-white/40 bg-white/60 backdrop-blur-md outline-none text-sm
-                    ${tieneError(col.key)
-                    ? "bg-red-50/70 border border-red-400 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
-                    : "bg-transparent hover:bg-slate-100"}`}
-                  
-                >
-                  <option value="">Seleccione...</option>
-                  {rowData.opciones_pago &&
-                    rowData.opciones_pago.map((item, i) => (
-                      <option key={i} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            );
-          }
-
-          /* ===================== INPUT NORMAL ===================== */
           return (
             <div key={col.key} className="flex flex-col gap-1">
-              <label className="text-xs text-slate-600 font-medium">
-                {col.label}
-              </label>
-
-              <input
-                type={col.tipo}
-                ref={(el) => {
-                  if (!inputsReferencias.current[0]) {
-                    inputsReferencias.current[0] = [];
-                  }
-                  inputsReferencias.current[0][index] = el;
-                }}
-                disabled={columnasDeshabilitdasGenerales.includes(col.key)}
-                value={rowData[col.key] == 0 ? "" : rowData[col.key] ?? ""}
-                onKeyDown={(e) => moverseEntreCeldas(e, index)}
-                onChange={(e) => {
-                  const { value, type } = e.target;
-
-                  setRow({
-                    ...rowData,
-                    [col.key]:
-                      type === "number" && value !== ""
-                        ? Number(value)
-                        : value
-                  });
-                }}
-                className={`px-3 py-2 rounded-xl border border-white/40 bg-white/50 outline-none text-sm
-                    ${tieneError(col.key)
-                    ? "bg-red-50/70 border border-red-400 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
-                    : "bg-transparent hover:bg-slate-100"}`}
-              />
+                <label className="text-xs text-slate-600 font-medium">
+                  {col.label}
+                </label>
+                <CellRenderer
+                col={col}
+                index={index}
+                rowData={rowData}
+                setRow={setRow}
+                data={data}
+                tieneError={tieneError}
+                setCellRef={baseRef}
+                moverseEntreCeldas={moverseEntreCeldas}
+                columnasDeshabilitdasGenerales={columnasDeshabilitdasGenerales}
+                procesarDatosTecnico={procesarDatosTecnico}
+                setNotas = {setNotas}
+                isMobile={isMobile}
+                />
             </div>
           );
+          // if (col.key === "check_box") return null;
+
+          // /* ===================== JOB ===================== */
+          // if (col.key === "job") {
+
+          //   if (data.length > 1) {
+          //     return (
+          //       <div key={col.key} className="flex flex-col gap-1">
+          //         <label className="text-xs text-slate-600 font-medium">
+          //           {col.label}
+          //         </label>
+
+          //         <select
+          //           ref={(el) => {
+          //             if (!inputsReferencias.current[0]) {
+          //               inputsReferencias.current[0] = [];
+          //             }
+          //             inputsReferencias.current[0][index] = el;
+          //           }}
+          //           value={selectedJob}
+          //           onChange={handleJobChange}
+          //           onKeyDown={(e) => moverseEntreCeldas(e, index)}
+          //           className="px-3 py-2 rounded-xl border border-white/40 bg-white/60 backdrop-blur-md outline-none text-sm"
+          //         >
+          //           <option value="">Seleccione...</option>
+          //           {data.map((item, i) => (
+          //             <option key={i} value={item.job}>
+          //               {item.job}
+          //             </option>
+          //           ))}
+          //         </select>
+          //       </div>
+          //     );
+          //   }
+
+          //   return (
+          //     <div key={col.key} className="flex flex-col gap-1">
+          //       <label className="text-xs text-slate-600 font-medium">
+          //         {col.label}
+          //       </label>
+          //       <input
+          //         disabled
+          //         value={rowData.job || ""}
+          //         className="px-3 py-2 rounded-xl bg-white/50 text-sm"
+          //       />
+          //     </div>
+          //   );
+          // }
+
+          // /* ===================== TIPO PAGO ===================== */
+          // if (col.key === "tipo_pago") {
+          //   return (
+          //     <div key={col.key} className="flex flex-col gap-1">
+          //       <label className="text-xs text-slate-600 font-medium">
+          //         {col.label}
+          //       </label>
+
+          //       <select
+          //         ref={(el) => {
+          //           if (!inputsReferencias.current[0]) {
+          //             inputsReferencias.current[0] = [];
+          //           }
+          //           inputsReferencias.current[0][index] = el;
+          //         }}
+          //         value={rowData.tipo_pago ?? ""}
+          //         onKeyDown={(e) => moverseEntreCeldas(e, index)}
+          //         onChange={(e) => {
+          //           setRow({
+          //             ...rowData,
+          //             tipo_pago: e.target.value
+          //           });
+          //         }}
+          //         className={`px-3 py-2 rounded-xl border border-white/40 bg-white/60 backdrop-blur-md outline-none text-sm
+          //           ${tieneError(col.key)
+          //           ? "bg-red-50/70 border border-red-400 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
+          //           : "bg-transparent hover:bg-slate-100"}`}
+                  
+          //       >
+          //         <option value="">Seleccione...</option>
+          //         {rowData.opciones_pago &&
+          //           rowData.opciones_pago.map((item, i) => (
+          //             <option key={i} value={item}>
+          //               {item}
+          //             </option>
+          //           ))}
+          //       </select>
+          //     </div>
+          //   );
+          // }
+
+          // /* ===================== INPUT NORMAL ===================== */
+          // return (
+          //   <div key={col.key} className="flex flex-col gap-1">
+          //     <label className="text-xs text-slate-600 font-medium">
+          //       {col.label}
+          //     </label>
+
+          //     <input
+          //       type={col.tipo}
+          //       ref={(el) => {
+          //         if (!inputsReferencias.current[0]) {
+          //           inputsReferencias.current[0] = [];
+          //         }
+          //         inputsReferencias.current[0][index] = el;
+          //       }}
+          //       disabled={columnasDeshabilitdasGenerales.includes(col.key)}
+          //       value={rowData[col.key] == 0 ? "" : rowData[col.key] ?? ""}
+          //       onKeyDown={(e) => moverseEntreCeldas(e, index)}
+          //       onChange={(e) => {
+          //         const { value, type } = e.target;
+
+          //         setRow({
+          //           ...rowData,
+          //           [col.key]:
+          //             type === "number" && value !== ""
+          //               ? Number(value)
+          //               : value
+          //         });
+          //       }}
+          //       className={`px-3 py-2 rounded-xl border border-white/40 bg-white/50 outline-none text-sm
+          //           ${tieneError(col.key)
+          //           ? "bg-red-50/70 border border-red-400 shadow-[0_0_0_1px_rgba(248,113,113,0.35)]"
+          //           : "bg-transparent hover:bg-slate-100"}`}
+          //     />
+          //   </div>
+          // );
         })}
 
         <button
