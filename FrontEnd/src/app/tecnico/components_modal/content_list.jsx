@@ -10,7 +10,7 @@ export function ContentList({ message, title, btnTextCancel, setIsOpen, modalTip
 
       {message.map((e, index) => (
         modalTipo === "NOTAS" 
-          ? <p key={index}>{index}. {e}</p>
+          ? <p key={index}>{index + 1}. {e}</p>
           : <p key={e.label}>{e.label}: {e.message}</p>
       ))}
 
