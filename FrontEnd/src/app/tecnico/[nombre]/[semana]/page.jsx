@@ -301,8 +301,10 @@ export default function Page() {
                 setIsOpen(true)
                 return
             }
-            const blob = await (await exportarExcelDBPost(regustrosGuardados,nombre,semana)).blob()
-            const url = window.URL.createObjectURL(blob);
+            const response = await exportarExcelDBPost(registrosGuardados,nombre,semana);
+
+            const blob = await response.blob();
+            
             const a = document.createElement("a");
             a.href = url;
             a.download = `${nombre}_${semana}.xlsx`;
