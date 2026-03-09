@@ -107,76 +107,165 @@ function formatearNumero(num) {
 
 
 function cash(params) {
-  const porcentaje_T = params.porcentaje_tecnico
-  const porcentaje_Gil = 100 - params.porcentaje_tecnico
-  const procesoAcabo= params.valor_servicio * (porcentaje_T/100)
-  const valorReal = params.valor_servicio - params.partes_tecnico - params.partes_gil
-  const valorDescontar = params.tech ? valorReal - params.tech  : (valorReal * (porcentaje_Gil/100))
 
-  if ((params.valor_servicio <= params.minimo + 25)){
-    params.total = formatearNumero((valorReal/2)+params.adicional_dolar)
-    return params
+  const porcentajeT = params.porcentaje_tecnico
+  const porcentajeGil = 100 - porcentajeT
+
+  const valorReal =
+    params.valor_servicio -
+    params.partes_tecnico -
+    params.partes_gil
+
+  const procesoTecnico =
+    params.valor_servicio * (porcentajeT / 100)
+
+  const valorDescontar = params.tech
+    ? valorReal - params.tech
+    : valorReal * (porcentajeGil / 100)
+
+  // CASO 1
+  if (
+    params.valor_servicio <= params.minimo + 25 &&
+    params.tipo_pago !== "MIXTO"
+  ) {
+    return {
+      ...params,
+      total: formatearNumero((valorReal / 2) + params.adicional_dolar)
+    }
   }
 
-  if(procesoAcabo > params.minimo){
-    params.total = formatearNumero(valorDescontar + params.partes_gil + params.adicional_dolar)
-  }else if (procesoAcabo > 0 && procesoAcabo <= params.minimo){
-    params.total = formatearNumero((valorReal-params.minimo) + params.adicional_dolar)
+  // CASO 2
+  if (
+    procesoTecnico > params.minimo ||
+    params.tipo_pago === "MIXTO"
+  ) {
+    return {
+      ...params,
+      total: formatearNumero(
+        valorDescontar +
+        params.partes_gil +
+        params.adicional_dolar
+      )
+    }
+  }
+
+  // CASO 3
+  if (
+    procesoTecnico > 0 &&
+    procesoTecnico <= params.minimo
+  ) {
+    return {
+      ...params,
+      total: formatearNumero(
+        (valorReal - params.minimo) +
+        params.adicional_dolar
+      )
+    }
   }
 
   return params
 }
+
+
 
 function CC(params) {
-  const porcentaje_T = params.porcentaje_tecnico // 30
-  const descuentoTarjeta = params.valor_servicio * (params.porcentaje_cc/100) // 8
-  console.log(descuentoTarjeta)
-  const valorRealTarjeta = params.valor_servicio-descuentoTarjeta - params.partes_tecnico - params.partes_gil // 192
-  const procesoAcabo= (valorRealTarjeta * (porcentaje_T/100))  // 60
-  const valorDescontar = params.tech ? valorRealTarjeta - params.tech : procesoAcabo
-  console.log(params.minimo-descuentoTarjeta,params.partes_tecnico,params.partes_gil,params.adicional_dolar)
 
-  if ((params.valor_servicio <= params.minimo + 25)){
-    params.total = formatearNumero(((valorRealTarjeta/2)-params.adicional_dolar+ params.partes_tecnico)* -1)
-    return params
+  const porcentajeT = params.porcentaje_tecnico
+
+  const descuentoTarjeta =
+    params.valor_servicio *
+    (params.porcentaje_cc / 100)
+
+  const valorRealTarjeta =
+    params.valor_servicio -
+    descuentoTarjeta -
+    params.partes_tecnico -
+    params.partes_gil
+
+  const procesoTecnico =
+    valorRealTarjeta *
+    (porcentajeT / 100)
+
+  const valorDescontar = params.tech
+    ? valorRealTarjeta - params.tech
+    : procesoTecnico
+
+  // CASO 1
+  if (
+    params.valor_servicio <= params.minimo + 25 &&
+    params.tipo_pago !== "MIXTO"
+  ) {
+    return {
+      ...params,
+      total: formatearNumero(
+        ((valorRealTarjeta / 2) -
+          params.adicional_dolar +
+          params.partes_tecnico) * -1
+      )
+    }
   }
 
-  if(procesoAcabo > params.minimo){
-    params.total = formatearNumero((valorDescontar + params.partes_tecnico - params.adicional_dolar) * -1)
-  }else if (procesoAcabo > 0 && procesoAcabo <= params.minimo){
-    params.total = formatearNumero(((params.minimo-descuentoTarjeta) + params.partes_tecnico - params.partes_gil - params.adicional_dolar) * -1)
+  // CASO 2
+  if (
+    procesoTecnico > params.minimo ||
+    params.tipo_pago === "MIXTO"
+  ) {
+    return {
+      ...params,
+      total: formatearNumero(
+        (valorDescontar +
+          params.partes_tecnico -
+          params.adicional_dolar) * -1
+      )
+    }
+  }
+
+  // CASO 3
+  if (
+    procesoTecnico > 0 &&
+    procesoTecnico <= params.minimo
+  ) {
+    return {
+      ...params,
+      total: formatearNumero(
+        (
+          (params.minimo - descuentoTarjeta) +
+          params.partes_tecnico -
+          params.partes_gil -
+          params.adicional_dolar
+        ) * -1
+      )
+    }
   }
 
   return params
 }
+
+
 
 function mixto(params) {
-  const valorServicioReal = params.valor_servicio
-  console.log(params)
-  const paramsProvicionalCash = {
-    ...params,               
-    valor_servicio: params.valor_tarjeta  
-  };
 
-  const valorCash = cash(paramsProvicionalCash);
-  console.log(valorCash)
+  const cashParams = {
+    ...params,
+    valor_servicio: params.valor_efectivo
+  }
 
-  const paramsProvicionalCC = {
-    ...params,                
+  const ccParams = {
+    ...params,
+    valor_servicio: params.valor_tarjeta,
     adicional_dolar: 0,
     partes_gil: 0,
-    partes_tecnico: 0,
-    valor_servicio: params.valor_tarjeta  
-  };
-  params.valor_servicio = valorServicioReal
+    partes_tecnico: 0
+  }
 
-  const valorCC = CC(paramsProvicionalCC);
-  console.log(valorCash.total, valorCC.total)
-  params.total = valorCash.total + valorCC.total
+  const valorCash = cash(cashParams)
+  const valorCC = CC(ccParams)
 
-  return params
+  return {
+    ...params,
+    total: valorCash.total + valorCC.total
+  }
 }
-
 
 
 export function procesarData(data){

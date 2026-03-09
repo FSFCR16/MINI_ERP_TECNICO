@@ -118,11 +118,9 @@ export default function Page() {
                 );
                 
                 const registrosCompletos = [...dataPreviaProcesada, ...registrosLocalStorage]
-
                 // Limpiar estado antes de actualizar
                 setListRegistros([]); 
                 setListRegistros(registrosCompletos);
-                console.log(infoTecnico)
                 setData(infoTecnico || []);
             } catch (err) {
                 console.error(err);
@@ -196,9 +194,7 @@ export default function Page() {
         const rowCopy = procesarData({ ...rowData })
         const id = crypto.randomUUID()
         rowCopy.id = id
-        console.log(rowCopy)
         const resultado = tecnicoSchema.safeParse(rowCopy)
-        console.log(resultado, "stop")
         if (!resultado.success) {
 
             const errores = mapearErroresZod(resultado.error)
@@ -207,7 +203,12 @@ export default function Page() {
             setIsOpen(true)
             return
         }
-
+        
+        if(rowCopy.tipo_pago === "CC" || rowCopy.tipo_pago === "CASH" ){
+            rowCopy.valor_tarjeta = 0
+            rowCopy.valor_efectivo = 0
+        }
+        
         setErroresCampos([])
         setListRegistros(prev => [...prev,rowCopy])
         setRegistrosLocalStorage(prev => [...prev, rowCopy])
@@ -261,17 +262,27 @@ export default function Page() {
         setLoading(true)
         try {
             const registrosFiltrados = listRegistro.filter(
-            reg => !reg.id_registro
+            reg => reg.id_registro === null || reg.id_registro === undefined
             )
-
             const resultado = await envioTablaDB(registrosFiltrados)
-            window.location.reload()
+
+            const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(err => {
+                console.warn("No se pudieron obtener los registros previos:", err.message);
+                return []
+            });
+            console.log(registrosPrevios)
+            const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
+                    procesarDatosTecnico(data,dato)
+            );
+            console.log(dataPreviaProcesada)
+            setListRegistros(dataPreviaProcesada)
 
         } catch (error) {
             console.error("Error:", error)
         }
         localStorage.removeItem(`registrosTemporales_${nombre}_${semana}`)
         setRegistrosLocalStorage([])
+        setLoading(false)
     }
 
     const clickExportExcel = () => {
@@ -293,6 +304,7 @@ export default function Page() {
         try {
             setIsOpen(false)
             setLoading(true)
+            console.log(listRegistro)
             const regustrosGuardados = listRegistro.filter(e => (e.id_registro))
             if(!regustrosGuardados.length){
                 setModalTipo("SIN_REGISTROS")
@@ -300,7 +312,6 @@ export default function Page() {
                 return
             }
             const response = await exportarExcelDBPost(regustrosGuardados,nombre,semana);
-
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");

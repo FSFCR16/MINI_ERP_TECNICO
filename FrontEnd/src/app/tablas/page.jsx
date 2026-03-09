@@ -21,6 +21,7 @@ export default function Page() {
 
             try {
                 const datos = await traerDatosCartas();
+                console.log(datos)
                 setListCartas(datos || []);
                 setListFiltrada(datos || [])
             } catch (err) {
@@ -174,68 +175,66 @@ export default function Page() {
 
                 {listFiltrada.map((cart, indexCart) => (
                     <div
-                    {...(esTouch
-                        ? { onClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
-                        : { onDoubleClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
-                    )}
-                    key={`${cart.tecnico_id}-${cart.semana_id}`}
-                    className="
-                        flex justify-between items-center
-                        px-4 sm:px-5
-                        py-3 sm:py-4
-                        rounded-xl sm:rounded-2xl
-                        bg-white/40
-                        backdrop-blur-xl
-                        border border-white/40
-                        transition-all duration-200 ease-out
-                        hover:bg-white/55
-                        hover:scale-[1.01]
-                        hover:shadow-md
-                        cursor-pointer
-                        group
-                    "
+                        {...(esTouch
+                            ? { onClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
+                            : { onDoubleClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
+                        )}
+                        key={`${cart.nombre}-${cart.semana_id}-${indexCart}`}
+                        className="
+                            flex justify-between items-center
+                            px-4 sm:px-5
+                            py-3 sm:py-4
+                            rounded-xl sm:rounded-2xl
+                            bg-white/40
+                            backdrop-blur-xl
+                            border border-white/40
+                            transition-all duration-200 ease-out
+                            hover:bg-white/55
+                            hover:scale-[1.01]
+                            hover:shadow-md
+                            cursor-pointer
+                            group
+                        "
                     >
 
                         {/* Info */}
                         <div>
                             <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800">
-                            {cart.nombre}
+                                {cart.nombre}
                             </p>
                             <p className="text-[11px] sm:text-xs text-slate-500 mt-1">
-                            Semana {cart.semana.split("_").at(-1)}
+                                Semana {cart.semana.split("_").at(-1)}
                             </p>
                         </div>
 
-                        {/* 🧊 Badge Glass */}
+                        {/* Badge */}
                         <div
                             className="
-                            relative
-                            flex flex-col items-center
-                            min-w-[55px] sm:min-w-[65px]
-                            px-3 sm:px-4
-                            py-1.5 sm:py-2
-                            rounded-lg sm:rounded-xl
-                            bg-white/30
-                            backdrop-blur-2xl
-                            border border-white/40
-                            shadow-md
-                        "
-                        >
-
-                            <span
-                            className="
-                            text-sm sm:text-base font-bold text-slate-800
-                            transition-transform duration-300
-                            group-hover:scale-110
+                                relative
+                                flex flex-col items-center
+                                min-w-[55px] sm:min-w-[65px]
+                                px-3 sm:px-4
+                                py-1.5 sm:py-2
+                                rounded-lg sm:rounded-xl
+                                bg-white/30
+                                backdrop-blur-2xl
+                                border border-white/40
+                                shadow-md
                             "
+                        >
+                            <span
+                                className="
+                                    text-sm sm:text-base font-bold text-slate-800
+                                    transition-transform duration-300
+                                    group-hover:scale-110
+                                "
                             >
-                            {cart.total_registros}
+                                {cart.total_registros}
                             </span>
 
                             <span className="text-[10px] sm:text-xs text-slate-600">
-                            registros
+                                registros
                             </span>
-
                         </div>
 
                     </div>

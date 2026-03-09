@@ -30,9 +30,6 @@ export const CellRenderer = ({
   const options = (rawOptions || []).map((o) =>
     typeof o === "string" ? { value: o, label: o } : o
   );
-
-  console.log(options)
-
   // referencia a la celda
   const baseRef = (el) => {
     if (!el) return;
