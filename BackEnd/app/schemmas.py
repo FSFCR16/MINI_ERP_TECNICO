@@ -65,7 +65,6 @@ class SemanaTecnicoSchemaFront(BaseModel):
         orm_mode = True
 
 class ResumenSemanaSchema(BaseModel):
-    tecnico_id: int
     nombre: str
     semana_id: int
     semana: str

@@ -102,7 +102,8 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
         db.bulk_insert_mappings(registrosSchemma, registros_db)
         db.commit()
 
-        return {"message": "Registros agregados correctamente"}
+        return {"message": "Registros agregados correctamente",
+                "registros": registros_db}
 
     except Exception as e:
         db.rollback()
@@ -158,26 +159,29 @@ def obtenerRegistrosSemana(semana: str, nombre: str, db: Session):
 def obtenerCantidadDeCartas(db: Session):
     resumen = (
         db.query(
-            Trabajo.id.label("tecnico_id"),
-            Trabajo.nombre,
-            SemanaTecnico.id.label("semana_id"),
+            registrosSchemma.nombre,
             SemanaTecnico.semana,
+            SemanaTecnico.id,
             func.count(registrosSchemma.id).label("total_registros")
         )
-        .join(registrosSchemma, registrosSchemma.tecnico_id == Trabajo.id)
-        .join(SemanaTecnico, registrosSchemma.semana_id == SemanaTecnico.id)
+        .join(
+            SemanaTecnico,
+            registrosSchemma.semana_id == SemanaTecnico.id
+        )
         .group_by(
-            Trabajo.id,
-            SemanaTecnico.id,
+            registrosSchemma.nombre,
+            SemanaTecnico.semana,
+            SemanaTecnico.id
         )
         .all()
     )
 
+    print(resumen)
+
     return [
         ResumenSemanaSchema(
-            tecnico_id=row.tecnico_id,
             nombre=row.nombre,
-            semana_id=row.semana_id,
+            semana_id=row.id,
             semana=row.semana,
             total_registros=row.total_registros
         )
@@ -190,7 +194,7 @@ def eliminarRegistros(registros: List[SemanaTecnicoSchemaFront], db: Session):
     try:
 
         ids = [reg.id_registro for reg in registros]
-
+        print(ids)
         db.query(registrosSchemma).filter(
             registrosSchemma.id.in_(ids)
         ).delete(synchronize_session=False)
@@ -206,53 +210,132 @@ def eliminarRegistros(registros: List[SemanaTecnicoSchemaFront], db: Session):
             detail="Error eliminando registros"
         )
 
-def exporToExcelController(registros:List[SemanaTecnicoSchemaFront],nombre:str,semana:str, db:Session):
-    print(registros)
+
+def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: str, semana: str, db: Session):
+
     listIDSRegistros = [reg.id_registro for reg in registros]
+
     registrosDB = (
         db.query(registrosSchemma)
         .filter(registrosSchemma.id.in_(listIDSRegistros))
         .all()
     )
-    print(registrosDB)
+
     if not registrosDB:
         raise HTTPException(
             status_code=404,
             detail="No hay registros para exportar"
         )
-    
+
+    # -----------------------------
+    # Construcción dataframe base
+    # -----------------------------
+
     dataFrameRegistros = [
         {
-        "Nombre": r.nombre,
-        "Job": r.job,
-        "Job Name": r.job_name,
-        "Valor Servicio": r.valor_servicio,
-        "Tipo Pago": r.tipo_pago,
-        "valor efectivo":r.valor_efectivo,
-        "valor tarjeta":r.valor_tarjeta,
-        "Partes Gil": r.partes_gil,
-        "Partes Tecnico": r.partes_tecnico,
-        "Tech": r.tech,
-        "Porcentaje Tecnico": r.porcentaje_tecnico,
-        "Porcentaje CC": r.porcentaje_cc,
-        "Subtotal": r.subtotal,
-        "Total": r.total,
-        } for r in registrosDB
+            "Nombre": r.nombre,
+            "job": r.job,
+            "job Name": r.job_name,
+            "valor Servicio": r.valor_servicio,
+            "tipo Pago": r.tipo_pago,
+            "valor efectivo": r.valor_efectivo,
+            "valor tarjeta": r.valor_tarjeta,
+            "partes Gil": r.partes_gil,
+            "partes Tecnico": r.partes_tecnico,
+            "tech": r.tech,
+            "porcentaje Tecnico": r.porcentaje_tecnico,
+            "porcentaje CC": r.porcentaje_cc,
+            "total": r.total,
+        }
+        for r in registrosDB
     ]
+
     df = pd.DataFrame(dataFrameRegistros)
-    fila_inicio= len(df) + 4
-    print(df)
+
+    fila_inicio = len(df) + 4
+
+    # -----------------------------
+    # Dataframe de resultados
+    # -----------------------------
+
     dfResultado = construcionTablaResultado(df)
-    print(dfResultado)
+
+    # -----------------------------
+    # detectar MIXTO
+    # -----------------------------
+
+    hay_mixto = df["TIPO PAGO"].str.upper().eq("MIXTO").any()
+
+    # -----------------------------
+    # renombrar columnas
+    # -----------------------------
+
+    df_export = df.rename(columns={
+        "NOMBRE": "NAME",
+        "JOB": "JOB",
+        "JOB NAME": "ID JOB",
+        "VALOR SERVICIO": "SALES",
+        "TIPO PAGO": "PAYMENT TYPE",
+        "VALOR EFECTIVO": "CASH",
+        "VALOR TARJETA": "CC",
+        "PARTES GIL": "GIL PARTS",
+        "PARTES TECNICO": "TECH PARTS",
+        "TECH": "TECH",
+        "PORCENTAJE TECNICO": "%",
+        "PORCENTAJE CC": "4%CC",
+        "TOTAL": "TOTAL"
+    })
+
+    columnas = [
+        "NAME",
+        "ID JOB",
+        "%",
+        "PAYMENT TYPE",
+        "SALES",
+        "4%CC",
+        "GIL PARTS",
+        "TECH PARTS",
+        "TECH",
+        "TOTAL"
+    ]
+
+    if hay_mixto:
+        columnas.insert(4, "CASH")
+        columnas.insert(5, "CC")
+
+    df_export = df_export[columnas]
+
+    # -----------------------------
+    # tabla BALANCED TECH
+    # -----------------------------
+
+    balanced_tech = df_export["TOTAL"].sum()
+
+    df_balance = pd.DataFrame({
+        "BALANCED TECH": [balanced_tech]
+    })
+
+    # -----------------------------
+    # crear excel
+    # -----------------------------
+
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
 
-        df.to_excel(writer, index=False)
+        df_export.to_excel(writer, index=False)
 
         dfResultado.to_excel(writer, startrow=fila_inicio, index=False)
 
-    output = estilizar_excel(output, df, dfResultado, fila_inicio)
-    output.seek(0)
-    nombre_archivo = f"{nombre}_semana_{semana}.xlsx"
+        df_balance.to_excel(
+            writer,
+            startrow=fila_inicio,
+            startcol=8,
+            index=False
+        )
+
+    output = estilizar_excel(output, df_export, dfResultado, fila_inicio) 
+    output.seek(0) 
+    nombre_archivo = f"{nombre}_semana_{semana}.xlsx" 
     return output, nombre_archivo
+

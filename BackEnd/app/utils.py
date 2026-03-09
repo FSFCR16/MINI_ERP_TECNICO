@@ -3,7 +3,7 @@ import pandas as pd
 from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font,Border, Side
 from openpyxl.utils import get_column_letter
 
 def semana_actual():
@@ -70,7 +70,6 @@ def obtener_rango_semana():
 
 def construcionTablaResultado(df):
     df.columns = df.columns.str.upper()
-    print(df)
     dfResultados = {
         "NOMBRE": [
             "TOTAL JOBS",
@@ -79,7 +78,6 @@ def construcionTablaResultado(df):
             "TOTAL SALES",
             "TOTAL PARTS",
             "AVERAGE SALES",
-            "TOTAL"
         ],
         "RESULTADO": []
     }
@@ -120,14 +118,10 @@ def construcionTablaResultado(df):
     averageSales = totalSales / totalJobs if totalJobs else 0
     dfResultados["RESULTADO"].append(averageSales)
 
-    # TOTAL
-    total = df["TOTAL"].sum()
-    dfResultados["RESULTADO"].append(total)
-
     return pd.DataFrame(dfResultados)
 
 
-def estilizar_excel(output, df, dfResultado, fila_inicio):
+
 
     output.seek(0)
     wb = load_workbook(output)
@@ -200,3 +194,123 @@ def estilizar_excel(output, df, dfResultado, fila_inicio):
 
     return nuevo_output
 
+def estilizar_excel(output, df, dfResultado, fila_inicio):
+
+    output.seek(0)
+    wb = load_workbook(output)
+    ws = wb.active
+
+    # =========================
+    # TABLA 1 (REGISTROS)
+    # =========================
+
+    ultima_columna = get_column_letter(len(df.columns))
+    ultima_fila = len(df) + 1
+
+    rango_tabla1 = f"A1:{ultima_columna}{ultima_fila}"
+
+    tabla1 = Table(displayName="TablaRegistros", ref=rango_tabla1)
+
+    estilo_tabla1 = TableStyleInfo(
+        name="TableStyleMedium9",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+
+    tabla1.tableStyleInfo = estilo_tabla1
+    ws.add_table(tabla1)
+
+    # =========================
+    # FILAS ROJAS SI TOTAL < 0
+    # =========================
+
+    col_total = df.columns.get_loc("TOTAL") + 1
+
+    rojo_claro = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+    for row in range(2, ultima_fila + 1):
+
+        valor_total = ws.cell(row=row, column=col_total).value
+
+        if valor_total is not None and valor_total < 0:
+
+            for col in range(1, len(df.columns) + 1):
+                ws.cell(row=row, column=col).fill = rojo_claro
+
+    # =========================
+    # TABLA 2 (RESULTADOS)
+    # =========================
+
+    inicio_tabla2 = fila_inicio + 1
+    fin_tabla2 = inicio_tabla2 + len(dfResultado)
+
+    rango_tabla2 = f"A{inicio_tabla2}:B{fin_tabla2}"
+
+    tabla2 = Table(displayName="TablaResultados", ref=rango_tabla2)
+
+    estilo_tabla2 = TableStyleInfo(
+        name="TableStyleMedium4",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+
+    tabla2.tableStyleInfo = estilo_tabla2
+    ws.add_table(tabla2)
+
+    # =========================
+    # COLORES FILAS RESULTADOS
+    # =========================
+
+    colores = [
+        "FFFF00",  # amarillo
+        "00FF00",  # verde
+        "FF0000",  # rojo
+        "008B8B",  # cyan oscuro
+        "6A5ACD",  # azul morado
+        "FF8C00"   # naranja oscuro
+    ]
+
+    for i, color in enumerate(colores):
+
+        fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+
+        fila_excel = inicio_tabla2 + 1 + i
+
+        for col in range(1, 3):
+            ws.cell(row=fila_excel, column=col).fill = fill
+
+    # =========================
+    # BALANCED TECH (VERDE)
+    # =========================
+
+    col_balance = 9
+    fila_balance = inicio_tabla2
+
+    verde = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
+
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    for row in range(fila_balance, fila_balance + 2):
+        for col in range(col_balance, col_balance + 2):
+
+            cell = ws.cell(row=row, column=col)
+
+            cell.border = thin_border
+            cell.fill = verde
+
+    ws.cell(row=fila_balance, column=col_balance).font = Font(bold=True)
+
+    nuevo_output = BytesIO()
+    wb.save(nuevo_output)
+    nuevo_output.seek(0)
+
+    return nuevo_output
