@@ -1,250 +1,389 @@
 "use client"
-import { useEffect, useState } from "react"
-import { traerDatosCartas } from "../../Services/tencicosServices.js"
-import { useRouter } from "next/navigation";
-import { LoadingOverlay } from "@/Components/loadingOverlay.jsx";
 
+import { useEffect, useState } from "react"
+import { traerSemanas, traerTecnicosSemana } from "../../Services/tencicosServices.js"
+import { LoadingOverlay } from "@/Components/loadingOverlay.jsx"
+import { useRouter } from "next/navigation"
 export default function Page() {
-    const router = useRouter()
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [listCartas, setListCartas] = useState([])
+
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+
+    const [vistaSemanas, setVistaSemanas] = useState(true)
+
+    const [listSemanas, setListSemanas] = useState([])
+    const [listTecnicos, setListTecnicos] = useState([])
+
     const [listFiltrada, setListFiltrada] = useState([])
+
     const [busqueda, setBusqueda] = useState("")
+    const [semanaSeleccionada, setSemanaSeleccionada] = useState(null)
+    const router = useRouter()
     const esTouch = typeof window !== "undefined" && 'ontouchstart' in window
+
+    const totalSemana = listTecnicos.reduce((acc, t) => acc + (t.total || 0), 0)
 
     useEffect(() => {
 
-        const cargarDatos = async () => {
-            setLoading(true);
-            setError(null);
+        const cargarSemanas = async () => {
+
+            setLoading(true)
+            setError(null)
 
             try {
-                const datos = await traerDatosCartas();
-                console.log(datos)
-                setListCartas(datos || []);
-                setListFiltrada(datos || [])
+
+                const semanas = await traerSemanas()
+
+                setListSemanas(semanas || [])
+                setListFiltrada(semanas || [])
+
             } catch (err) {
-                console.error(err);
-                setError("No se pudo traer la informacion necesaria para construir las cartas");
+
+                console.error(err)
+                setError("No se pudieron cargar las semanas")
+
             } finally {
-                setLoading(false);
+
+                setLoading(false)
+
             }
-        };
 
-        cargarDatos();
-
-    }, []);
-
-    const filtrarList = (valor) => {
-
-        setBusqueda(valor)
-
-        if (!valor) {
-            setListFiltrada(listCartas)
-            return
         }
 
-        const listaFiltrada = listCartas.filter(elemento =>
-            elemento.nombre.toLowerCase().includes(valor.toLowerCase())
-        )
+        cargarSemanas()
 
-        setListFiltrada(listaFiltrada)
+    }, [])
+
+
+
+    const cargarTecnicosSemana = async (semana) => {
+
+        setLoading(true)
+
+        try {
+
+            const datos = await traerTecnicosSemana(semana.id)
+
+            setListTecnicos(datos || [])
+            setListFiltrada(datos || [])
+
+            setSemanaSeleccionada(semana)
+            setVistaSemanas(false)
+
+        } catch (err) {
+
+            console.error(err)
+            setError("No se pudo cargar el historial de técnicos")
+
+        } finally {
+
+            setLoading(false)
+
+        }
+
     }
+
+
+
+    const volverSemanas = () => {
+
+        setVistaSemanas(true)
+        setBusqueda("")
+        setListFiltrada(listSemanas)
+
+    }
+
+
+
+    function filtrarHistorial(texto) {
+
+        setBusqueda(texto)
+
+        const palabras = texto
+        .toLowerCase()
+        .trim()
+        .split(" ")
+
+        const base = vistaSemanas ? listSemanas : listTecnicos
+
+        const filtrados = base.filter(item => {
+
+            const textoRegistro = `
+                ${item.nombre || ""}
+                ${item.fecha_inicio || ""}
+                ${item.fecha_fin || ""}
+                ${item.total_registros || ""}
+                ${item.semana || ""}
+            `.toLowerCase()
+
+            return palabras.every(p =>
+                textoRegistro.includes(p)
+            )
+
+        })
+
+        setListFiltrada(filtrados)
+
+    }
+
+
 
     if (error) {
+
         return (
-            <div className="w-full flex justify-center">
-                <div
-                    className="
-                    w-full max-w-2xl
-                    bg-white/60 backdrop-blur-xl
-                    border border-red-300/40
-                    rounded-3xl
-                    shadow-2xl
-                    px-10 py-16
-                    text-center
-                    "
-                >
-                    <p className="text-red-600 font-medium text-lg">
-                    {error}
-                    </p>
-                </div>
+            <div className="w-full flex justify-center mt-20">
+                <p className="text-red-600">{error}</p>
             </div>
-        );
+        )
+
     }
+
+
+    console.log(listFiltrada)
     return (
+
         <>
-            {loading && <LoadingOverlay />}
-            <div
-            className="
-            min-h-screen
-            bg-gradient-to-br
-            from-slate-100
-            via-blue-100
-            to-indigo-200
-            relative
-            overflow-hidden
-            px-4 sm:px-6 lg:px-8
-            py-8 sm:py-10 lg:py-14
-            flex
-            justify-center
-            "
-            >
+        {loading && <LoadingOverlay />}
 
-            {/* 🌫 Glow ambiental dinámico */}
-            <div className="absolute -top-40 -left-40 w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] bg-indigo-400/20 rounded-full blur-[120px] animate-pulse" />
-            <div className="absolute -bottom-40 -right-40 w-[400px] sm:w-[500px] h-[400px] sm:h-[500px] bg-blue-400/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 flex justify-center px-4 py-10">
 
-            <div
-                className="
-                relative z-10
-                w-full
-                max-w-md sm:max-w-xl lg:max-w-3xl
-                flex flex-col
-                gap-5 sm:gap-6 lg:gap-8
-            "
-            >
+            <div className="w-full max-w-3xl flex flex-col gap-6">
 
-                {/* ================= HEADER ================= */}
+                {/* HEADER */}
+
                 <div className="text-center">
-                <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-slate-800 tracking-tight">
-                    Técnicos
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Resumen semanal de registros
-                </p>
-                </div>
 
-                {/* ================= BUSCADOR ================= */}
-                <div
-                className="
-                bg-white/30
-                backdrop-blur-2xl
-                border border-white/40
-                rounded-xl sm:rounded-2xl
-                shadow-md
-                p-3 sm:p-4
-                "
-                >
-                <input
-                    type="text"
-                    value={busqueda}
-                    placeholder="Buscar técnico..."
-                    onChange={(e) => filtrarList(e.target.value)}
-                    className="
-                    w-full
-                    bg-white/50
-                    backdrop-blur-md
-                    border border-white/40
-                    rounded-lg sm:rounded-xl
-                    px-3 sm:px-4
-                    py-2
-                    text-sm sm:text-base
-                    text-slate-700
-                    placeholder-slate-400
-                    outline-none
-                    focus:bg-white/70
-                    focus:ring-2 focus:ring-indigo-200
-                    transition-all duration-200
-                    "
-                />
-                </div>
+                    <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">
 
-                {/* ================= LISTA ================= */}
-                <div
-                className="
-                bg-white/25
-                backdrop-blur-2xl
-                border border-white/30
-                rounded-2xl sm:rounded-3xl
-                shadow-xl
-                p-4 sm:p-5 lg:p-6
-                max-h-[55vh] sm:max-h-[60vh] lg:max-h-[65vh]
-                overflow-y-auto
-                custom-scroll
-                space-y-3 sm:space-y-4
-                "
-                >
+                        {vistaSemanas ? "Historial General" : "Técnicos de la Semana"}
 
-                {listFiltrada.length === 0 && (
-                    <div className="text-center text-slate-500 py-8 text-sm">
-                    No se encontraron técnicos
-                    </div>
-                )}
+                    </h1>
 
-                {listFiltrada.map((cart, indexCart) => (
-                    <div
-                        {...(esTouch
-                            ? { onClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
-                            : { onDoubleClick: () => router.push(`/tecnico/${cart.nombre}/${cart.semana}`) }
-                        )}
-                        key={`${cart.nombre}-${cart.semana_id}-${indexCart}`}
-                        className="
-                            flex justify-between items-center
-                            px-4 sm:px-5
-                            py-3 sm:py-4
-                            rounded-xl sm:rounded-2xl
-                            bg-white/40
-                            backdrop-blur-xl
-                            border border-white/40
-                            transition-all duration-200 ease-out
-                            hover:bg-white/55
-                            hover:scale-[1.01]
-                            hover:shadow-md
-                            cursor-pointer
-                            group
-                        "
-                    >
+                    {!vistaSemanas && (
 
-                        {/* Info */}
-                        <div>
-                            <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800">
-                                {cart.nombre}
+                        <div className="flex flex-col items-center gap-2 mt-2">
+
+                            <p className="text-sm text-slate-600">
+
+                                {semanaSeleccionada.fecha_inicio} / {semanaSeleccionada.fecha_fin}
+
                             </p>
-                            <p className="text-[11px] sm:text-xs text-slate-500 mt-1">
-                                Semana {cart.semana.split("_").at(-1)}
-                            </p>
-                        </div>
 
-                        {/* Badge */}
-                        <div
-                            className="
-                                relative
-                                flex flex-col items-center
-                                min-w-[55px] sm:min-w-[65px]
-                                px-3 sm:px-4
-                                py-1.5 sm:py-2
-                                rounded-lg sm:rounded-xl
-                                bg-white/30
-                                backdrop-blur-2xl
-                                border border-white/40
-                                shadow-md
-                            "
-                        >
-                            <span
+                            <div className="flex gap-3 items-center">
+
+                                <span className="text-xs text-slate-500">
+                                    Total semana
+                                </span>
+
+                                <span className="px-3 py-1 rounded-xl bg-white/40 border border-white/40 text-sm font-semibold text-slate-700">
+                                    {totalSemana}
+                                </span>
+
+                            </div>
+
+                            <button
+                                onClick={volverSemanas}
                                 className="
-                                    text-sm sm:text-base font-bold text-slate-800
-                                    transition-transform duration-300
-                                    group-hover:scale-110
+                                flex items-center gap-2
+                                px-4 py-2
+                                rounded-xl
+                                bg-white/40
+                                backdrop-blur-md
+                                border border-white/40
+                                text-sm font-medium
+                                text-slate-700
+                                hover:bg-white/60
+                                hover:scale-[1.02]
+                                transition-all
+                                cursor-pointer
                                 "
                             >
-                                {cart.total_registros}
-                            </span>
+                                <span className="text-base">←</span>
+                                Volver a semanas
+                            </button>
 
-                            <span className="text-[10px] sm:text-xs text-slate-600">
-                                registros
-                            </span>
                         </div>
 
-                    </div>
-                ))}
+                    )}
 
                 </div>
 
-            </div>
-            </div>
-        </>
 
+
+                {/* BUSCADOR */}
+
+                <div className="bg-white/30 backdrop-blur-2xl border border-white/40 rounded-2xl p-3 shadow-md">
+
+                    <input
+                        value={busqueda}
+                        placeholder={vistaSemanas ? "Buscar semana..." : "Buscar técnico..."}
+                        onChange={(e)=>filtrarHistorial(e.target.value)}
+                        className="
+                        w-full
+                        bg-white/50
+                        backdrop-blur-md
+                        border border-white/40
+                        rounded-xl
+                        px-4
+                        py-2.5
+                        text-sm
+                        text-slate-700
+                        placeholder-slate-400
+                        outline-none
+                        focus:bg-white/70
+                        focus:ring-2 focus:ring-indigo-200
+                        transition-all
+                        "
+                    />
+
+                </div>
+
+
+
+                {/* ================= VISTA SEMANAS ================= */}
+
+                {vistaSemanas && (
+
+                    <div className="space-y-3">
+
+                        {listFiltrada.map((semana, index)=>{
+
+                            return (
+
+                                <div
+
+                                    key={index}
+
+                                    {...(esTouch
+                                        ? { onClick: () => cargarTecnicosSemana(semana) }
+                                        : { onDoubleClick: () => cargarTecnicosSemana(semana) }
+                                    )}
+
+                                    className="
+                                    flex justify-between items-center
+                                    px-5 py-4
+                                    rounded-2xl
+                                    bg-white/40
+                                    backdrop-blur-xl
+                                    border border-white/40
+                                    hover:bg-white/55
+                                    hover:scale-[1.01]
+                                    transition
+                                    cursor-pointer
+                                    "
+
+                                >
+
+                                    <div>
+
+                                        <p className="text-base sm:text-lg font-semibold text-slate-800">
+
+                                            {semana.fecha_inicio} / {semana.fecha_fin}
+
+                                        </p>
+
+                                    </div>
+
+                                </div>
+
+                            )
+
+                        })}
+
+                    </div>
+
+                )}
+
+
+
+                {/* ================= VISTA TECNICOS ================= */}
+
+                {!vistaSemanas && (
+
+                    <div className="space-y-3">
+
+                        {listFiltrada.map((cart, indexCart) => (
+
+                            <div
+
+                                key={`${cart.nombre}-${indexCart}`}
+                                className="
+                                flex justify-between items-center
+                                px-5 py-4
+                                rounded-2xl
+                                bg-white/40
+                                backdrop-blur-xl
+                                border border-white/40
+                                hover:bg-white/55
+                                transition
+                                cursor-pointer
+                                "
+                                onDoubleClick={() => {
+                                    router.push(`/tecnico/${cart.nombre}/${cart.semana}`)
+                                }}
+                            >
+
+                                <div>
+
+                                    <p className="text-base sm:text-lg font-semibold text-slate-800">
+
+                                        {cart.nombre}
+
+                                    </p>
+
+                                </div>
+
+
+
+                                <div className="flex gap-3">
+
+                                    <div className="px-3 py-1.5 rounded-xl bg-white/30 border border-white/40 text-center">
+
+                                        <p className="text-sm font-semibold text-slate-800">
+
+                                            {cart.total}
+
+                                        </p>
+
+                                        <p className="text-[10px] text-slate-500">
+
+                                            total
+
+                                        </p>
+
+                                    </div>
+
+                                    <div className="px-3 py-1.5 rounded-xl bg-white/30 border border-white/40 text-center">
+
+                                        <p className="text-sm font-semibold text-slate-800">
+
+                                            {cart.total_registros}
+
+                                        </p>
+
+                                        <p className="text-[10px] text-slate-500">
+
+                                            registros
+
+                                        </p>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        ))}
+
+                    </div>
+
+                )}
+
+            </div>
+
+        </div>
+
+        </>
     )
+
 }

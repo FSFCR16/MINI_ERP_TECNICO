@@ -70,3 +70,7 @@ class ResumenSemanaSchema(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     total_registros: int
+
+class SemanaRequest(BaseModel):
+    semana_id: int
+

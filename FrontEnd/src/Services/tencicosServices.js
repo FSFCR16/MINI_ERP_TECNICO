@@ -98,3 +98,20 @@ export async function obtenerHistorial(nombreTecnico) {
     if (!res.ok) throw new Error("No fue posible obtener el historial del tecnico");
     return await res.json();
 }
+
+export async function traerTecnicosSemana(semana) {
+    console.log(semana)
+    const res = await fetch(`${APIURL}/api/historial-semana-tecnicos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({"semana_id":semana}),
+    });
+    if (!res.ok) throw new Error("No fue posible obtener el historial del tecnico");
+    return await res.json();
+}
+
+export async function traerSemanas() {
+    const res = await fetch(`${APIURL}/api/historial-semanas`);
+    if (!res.ok) throw new Error("No fue posible obteniendo las semanas creadas");
+    return await res.json();
+}

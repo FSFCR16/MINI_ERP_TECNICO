@@ -5,7 +5,7 @@ from app.utils import semana_actual,obtener_rango_semana, construcionTablaResult
 from app.schemmas import TrabajoSchema,TecnicoRequest,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
 from datetime import date, timedelta
 from typing import List
-from sqlalchemy import func
+from sqlalchemy import func, desc
 import pandas as pd
 from io import BytesIO
 
@@ -343,3 +343,59 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
     nombre_archivo = f"{nombre}_semana_{semana}.xlsx" 
     return output, nombre_archivo
 
+def obtenerSemanasDisponibles(db: Session):
+
+    semanas = (
+        db.query(SemanaTecnico)
+        .order_by(desc(SemanaTecnico.fecha_inicio))
+        .all()
+    )
+
+    return semanas
+
+from sqlalchemy import func
+
+def obtenerTecnicosPorSemana(semana_id: int, db: Session):
+
+    resumen = (
+        db.query(
+            registrosSchemma.nombre,
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin,
+            SemanaTecnico.semana,
+            SemanaTecnico.id.label("semana_id"),
+            func.sum(registrosSchemma.total).label("total_generado"),
+            func.count(registrosSchemma.nombre).label("total_registros")
+        )
+        .join(
+            SemanaTecnico,
+            registrosSchemma.semana_id == SemanaTecnico.id
+        )
+        .filter(
+            registrosSchemma.semana_id == semana_id
+        )
+        .group_by(
+            registrosSchemma.nombre,
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin,
+            SemanaTecnico.semana,
+            SemanaTecnico.id
+        )
+        .order_by(
+            registrosSchemma.nombre.asc()
+        )
+        .all()
+    )
+
+    return [
+        {
+            "nombre": row.nombre,
+            "fecha_inicio": row.fecha_inicio,
+            "fecha_fin": row.fecha_fin,
+            "semana": row.semana,
+            "semana_id": row.semana_id,
+            "total": row.total_generado,
+            "total_registros": row.total_registros
+        }
+        for row in resumen
+    ]

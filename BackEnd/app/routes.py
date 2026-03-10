@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController
-from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema
+from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana
+from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest
 from typing import List
 
 
@@ -36,6 +36,17 @@ async def validarInformacion(db: Session = Depends(get_db)):
 @router.post("/registrosDataBase")
 async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):
     return envioRegistrosDB(registros, db)
+
+@router.get("/historial-semanas")
+async def obtenerSemanasRoute(db: Session = Depends(get_db)):
+    return obtenerSemanasDisponibles(db)
+
+@router.post("/historial-semana-tecnicos")
+async def historialSemanaTecnicosRoute(
+    semana: SemanaRequest,
+    db: Session = Depends(get_db)
+):
+    return obtenerTecnicosPorSemana(semana.semana_id, db)
 
 @router.post("/historial-tecnico")
 def obtenerHistorialTenicoRoute(nombre: TecnicoRequest, db: Session = Depends(get_db)):
