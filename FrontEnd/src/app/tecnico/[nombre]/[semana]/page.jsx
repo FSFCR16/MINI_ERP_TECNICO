@@ -12,7 +12,7 @@ import { ContentNoList } from '../../components_modal/content_noList.jsx';
 import { LoadingOverlay } from '@/Components/loadingOverlay.jsx';
 import { columnasBase } from './tableRow/columnasBase.jsx';
 import { CellRenderer } from './tableRow/renderCell.jsx';
-
+import { ModalHistorial } from '../../components_modal/contentModalHistorial.jsx';
 export default function Page() {
 
     const { nombre, semana} = useParams();
@@ -87,6 +87,10 @@ export default function Page() {
             modalRender:1,
             hasFunction:true,
             functionName:() => exportarExcelDB()
+        },
+        "HISTORIAL":{
+            title:"HISTORIAL DEL TECNICO",
+            modalRender:3,
         }
     }
     useEffect(() => {
@@ -378,7 +382,7 @@ export default function Page() {
             <div className="w-full max-w-[1250px] flex flex-col gap-4 h-full">
 
                 {/* ===================== INFO TECNICO Y SEMANA ===================== */}
-                <div className="w-full bg-white/70 backdrop-blur-sm rounded-xl shadow-sm px-4 py-2 flex flex-wrap items-center gap-6 text-sm text-slate-700">
+                <div className="w-full bg-white/70 backdrop-blur-sm rounded-xl shadow-sm px-4 py-2 flex flex-wrap items-center justify-between gap-6 text-sm text-slate-700">
 
                     <div>
                         Técnico: <span>{nombre}</span>
@@ -387,6 +391,21 @@ export default function Page() {
                     <div>
                         Semana: {fechaInicio} / {fechaFin} {new Date().getFullYear()}
                     </div>
+                    <button
+                        className="px-5 py-1.5 flex items-center gap-2 text-sm rounded-xl
+                        bg-white/40 backdrop-blur-xl
+                        border border-white/40
+                        text-amber-600 font-medium
+                        shadow-md shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]
+                        shadow-md hover:bg-white/60 hover:text-amber-700
+                        active:scale-95 transition-all duration-200 cursor-pointer"
+                        onClick={() => {
+                            setIsOpen(true)
+                            setModalTipo("HISTORIAL")
+                        }}
+                        >
+                        HISTORIAL
+                    </button>
 
                 </div>
                 {/* ===================== TABLA SUPERIOR ===================== */}
@@ -696,6 +715,13 @@ export default function Page() {
                                 btnTextCancel = {configModal[modalTipo]?.cancelText}
                                 setIsOpen = {setIsOpen}
                                 modalTipo = {modalTipo}                           
+                            />}
+                            {(configModal[modalTipo]?.modalRender === 3) && <ModalHistorial
+                                title = {configModal[modalTipo]?.title}
+                                setIsOpen = {setIsOpen} 
+                                setError={setError} 
+                                nombre={nombre}              
+                                setLoading={setLoading}      
                             />}
                         </DialogPanel>
                     </Transition.Child>

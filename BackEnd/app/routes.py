@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerCantidadDeCartas, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController
+from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController
 from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema
 from typing import List
 
@@ -37,10 +37,13 @@ async def validarInformacion(db: Session = Depends(get_db)):
 async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):
     return envioRegistrosDB(registros, db)
 
+@router.post("/historial-tecnico")
+def obtenerHistorialTenicoRoute(nombre: TecnicoRequest, db: Session = Depends(get_db)):
+    return obtenerHistorialTenico(nombre.nombre, db)
 
 @router.post("/exportToExcel/{nombre}/{semana}")
 async def exporToExcelRoute(registros: List[SemanaTecnicoSchemaFront], nombre: str, semana: str, db: Session = Depends(get_db)):
-    
+
     if not registros:
         raise HTTPException(status_code=400, detail="No se enviaron los registros")
 
@@ -55,9 +58,9 @@ async def exporToExcelRoute(registros: List[SemanaTecnicoSchemaFront], nombre: s
     )
 
 
-@router.get("/informacionGeneralRegistros", response_model=List[ResumenSemanaSchema])
-async def informacionCartasRoute(db: Session = Depends(get_db)):
-    return obtenerCantidadDeCartas(db)
+# @router.get("/informacionGeneralRegistros", response_model=List[ResumenSemanaSchema])
+# async def informacionCartasRoute(db: Session = Depends(get_db)):
+#     return obtenerCantidadDeCartas(db)
 
 
 @router.get("/obtenerRegistros/{nombre}/{semana}")

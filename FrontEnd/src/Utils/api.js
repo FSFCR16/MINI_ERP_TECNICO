@@ -297,3 +297,29 @@ export function formatearFechaSemana(fecha){
   return fechaFormato
 
 }
+
+export function filtrarHistorial(texto) {
+
+ const palabras = texto
+   .toLowerCase()
+   .trim()
+   .split(" ")
+
+ const filtrados = historialOriginal.filter(item => {
+
+   const textoRegistro = `
+     ${item.nombre}
+     ${item.fecha_inicio}
+     ${item.fecha_fin}
+     ${item.total_registros}
+   `.toLowerCase()
+
+   return palabras.every(p =>
+      textoRegistro.includes(p)
+   )
+
+ })
+
+ setHistorialFiltrado(filtrados)
+
+}

@@ -32,7 +32,6 @@ class SemanaTecnicoSchema(BaseModel):
 
     fecha_inicio: date
     fecha_fin: date
-
     estado: str
 
     class Config:
@@ -68,4 +67,6 @@ class ResumenSemanaSchema(BaseModel):
     nombre: str
     semana_id: int
     semana: str
+    fecha_inicio: date
+    fecha_fin: date
     total_registros: int

@@ -27,7 +27,6 @@ export async function ValidarSemanaTecnico() {
 }
 
 export async function envioTablaDB(listaRegistros) {
-    console.log(listaRegistros)
     const res = await fetch(`${APIURL}/api/registrosDataBase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,4 +86,15 @@ export async function exportarExcelDBPost(registros,nombre,semana) {
   } catch (error) {
     console.error(error);
   }
+}
+
+
+export async function obtenerHistorial(nombreTecnico) {
+    const res = await fetch(`${APIURL}/api/historial-tecnico`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({"nombre":nombreTecnico}),
+    });
+    if (!res.ok) throw new Error("No fue posible obtener el historial del tecnico");
+    return await res.json();
 }

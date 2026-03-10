@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Trabajo, SemanaTecnico,registrosSchemma
 from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel
-from app.schemmas import TrabajoSchema,TecnicoRequest,SemanaTecnicoSchemaFront,ResumenSemanaSchema
+from app.schemmas import TrabajoSchema,TecnicoRequest,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
 from datetime import date, timedelta
 from typing import List
 from sqlalchemy import func
@@ -156,33 +156,40 @@ def obtenerRegistrosSemana(semana: str, nombre: str, db: Session):
     return registros
 
     
-def obtenerCantidadDeCartas(db: Session):
+def obtenerHistorialTenico(nombre:str,db: Session):
+    print(nombre)
     resumen = (
         db.query(
             registrosSchemma.nombre,
             SemanaTecnico.semana,
-            SemanaTecnico.id,
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin,
+            SemanaTecnico.id.label("semana_id"),
             func.count(registrosSchemma.id).label("total_registros")
         )
         .join(
             SemanaTecnico,
             registrosSchemma.semana_id == SemanaTecnico.id
         )
+        .filter(registrosSchemma.nombre == nombre)
         .group_by(
             registrosSchemma.nombre,
+            SemanaTecnico.id,
             SemanaTecnico.semana,
-            SemanaTecnico.id
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin
         )
-        .all()
+        .order_by(SemanaTecnico.fecha_inicio.desc())
     )
 
-    print(resumen)
 
     return [
         ResumenSemanaSchema(
             nombre=row.nombre,
-            semana_id=row.id,
+            semana_id=row.semana_id,
             semana=row.semana,
+            fecha_inicio=row.fecha_inicio,
+            fecha_fin=row.fecha_fin,
             total_registros=row.total_registros
         )
         for row in resumen
@@ -227,9 +234,6 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
             detail="No hay registros para exportar"
         )
 
-    # -----------------------------
-    # Construcción dataframe base
-    # -----------------------------
 
     dataFrameRegistros = [
         {
