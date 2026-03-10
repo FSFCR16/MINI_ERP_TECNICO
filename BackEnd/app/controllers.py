@@ -359,6 +359,7 @@ def obtenerTecnicosPorSemana(semana_id: int, db: Session):
 
     resumen = (
         db.query(
+            func.max(registrosSchemma.id).label("id"),
             registrosSchemma.nombre,
             SemanaTecnico.fecha_inicio,
             SemanaTecnico.fecha_fin,
@@ -389,6 +390,7 @@ def obtenerTecnicosPorSemana(semana_id: int, db: Session):
 
     return [
         {
+            "id": row.id,
             "nombre": row.nombre,
             "fecha_inicio": row.fecha_inicio,
             "fecha_fin": row.fecha_fin,
@@ -399,3 +401,26 @@ def obtenerTecnicosPorSemana(semana_id: int, db: Session):
         }
         for row in resumen
     ]
+
+def eliminarSemana(semana_id: int, db: Session):
+
+    semana = db.query(SemanaTecnico).filter(
+        SemanaTecnico.id == semana_id
+    ).first()
+
+    db.delete(semana)
+
+    db.commit()
+
+    return {"message": "Semana eliminada correctamente"}
+
+def eliminarTecnicoSemana(data, db: Session):
+
+    db.query(registrosSchemma).filter(
+        registrosSchemma.nombre == data.nombre,
+        registrosSchemma.semana_id == data.semana_id
+    ).delete(synchronize_session=False)
+
+    db.commit()
+
+    return {"message": "Registros del técnico eliminados correctamente"}

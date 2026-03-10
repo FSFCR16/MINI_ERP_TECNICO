@@ -115,3 +115,40 @@ export async function traerSemanas() {
     if (!res.ok) throw new Error("No fue posible obteniendo las semanas creadas");
     return await res.json();
 }
+
+export async function eliminarSemana(semana_id) {
+  console.log(semana_id)
+  const res = await fetch(`${APIURL}/api/delete-historial-semana`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({"semana_id":semana_id}),
+  })
+
+  if (!res.ok) {
+    throw new Error("Error eliminando semana")
+  }
+
+  return res.json()
+}
+
+export async function eliminarTecnicoSemana(nombre, semana_id) {
+
+  const res = await fetch(`${APIURL}/api/delete-historial-tecnico`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      "semana_id":semana_id,
+      "nombre":nombre
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error("Error eliminando registros")
+  }
+
+  return res.json()
+}

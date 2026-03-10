@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana
-from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest
+from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana
+from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana
 from typing import List
 
 
@@ -82,3 +82,13 @@ async def obtenerRegistrosRoute(semana: str, nombre: str, db: Session = Depends(
 @router.delete("/eliminarRegistrosSelecionados")
 async def eliminarRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):
     return eliminarRegistros(registros, db)
+
+@router.delete("/delete-historial-semana")
+async def eliminarSemanaRoute(data: SemanaRequest, db: Session = Depends(get_db)):
+    print(data)
+    return eliminarSemana(data.semana_id, db)
+
+
+@router.delete("/delete-historial-tecnico")
+async def eliminarTecnicoSemanaRoute(data: infoSemana, db: Session = Depends(get_db)):
+    return eliminarTecnicoSemana(data, db)

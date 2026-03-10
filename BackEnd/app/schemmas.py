@@ -74,3 +74,6 @@ class ResumenSemanaSchema(BaseModel):
 class SemanaRequest(BaseModel):
     semana_id: int
 
+class infoSemana(BaseModel):
+    semana_id: int
+    nombre: str

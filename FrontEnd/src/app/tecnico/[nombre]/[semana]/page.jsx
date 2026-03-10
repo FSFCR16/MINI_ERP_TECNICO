@@ -13,6 +13,7 @@ import { LoadingOverlay } from '@/Components/loadingOverlay.jsx';
 import { columnasBase } from './tableRow/columnasBase.jsx';
 import { CellRenderer } from './tableRow/renderCell.jsx';
 import { ModalHistorial } from '../../components_modal/contentModalHistorial.jsx';
+
 export default function Page() {
 
     const { nombre, semana} = useParams();
@@ -37,61 +38,61 @@ export default function Page() {
     const [fechaFin, setfechaFin] = useState("")
 
     const configModal = {
-        "FINALIZAR":{
-            title:"TABLA FINALIZADA",
-            message:"Verifique que la información sea correcta antes de finalizar.",
-            confirmText: "ACEPTAR",
-            cancelText: "CANCELAR",
-            hasFunction:true,
-            showBtn:true,
-            modalRender:1,
-            functionName:() => finalizarTabla()
-        },
-        "EXPORTAR":{
-            title:"EXPORTAR A EXCEL",
-            message:"Verifique la información antes de exportar.",
-            confirmText: "EXPORTAR",
-            cancelText: "CANCELAR",
-            modalRender:1,
-            showBtn:true,
-            hasFunction:true,
-            functionName: () => exportarExcelDB()
-        },
-        "NOTAS":{
-            title:"NOTAS DEL TECNICO",
-            message:notas,
-            cancelText: "CANCELAR",
-            modalRender:2,
-            showBtn:false
-        },
-        "ERROR":{
-            title:"CAMPOS FALTANTES",
-            message:erroresCampos,
-            cancelText: "CANCELAR",
-            modalRender:2,
-            showBtn:false,
-        },
-        "SIN_REGISTROS":{
-            title:"SIN REGISTROS",
-            message:"No hay registros para exportar la tabla a un excel, por favor agregue registros para continuar",
-            cancelText: "CANCELAR",
-            modalRender:1,
-            showBtn:false,
-        },
-        "REGISTROS_NO_GUARDADOS":{
-            title:"REGISTROS SIN GUARDAR",
-            message:"Hay registros que todavia no han sido guardados, ¿Desea continuar?",
-            confirmText: "CONTINUAR",
-            cancelText: "CANCELAR",
-            showBtn:true,
-            modalRender:1,
-            hasFunction:true,
-            functionName:() => exportarExcelDB()
-        },
-        "HISTORIAL":{
-            title:"HISTORIAL DEL TECNICO",
-            modalRender:3,
-        }
+            "FINALIZAR":{
+                title:"TABLA FINALIZADA",
+                message:"Verifique que la información sea correcta antes de finalizar.",
+                confirmText: "ACEPTAR",
+                cancelText: "CANCELAR",
+                hasFunction:true,
+                showBtn:true,
+                modalRender:1,
+                functionName:() => finalizarTabla()
+            },
+            "EXPORTAR":{
+                title:"EXPORTAR A EXCEL",
+                message:"Verifique la información antes de exportar.",
+                confirmText: "EXPORTAR",
+                cancelText: "CANCELAR",
+                modalRender:1,
+                showBtn:true,
+                hasFunction:true,
+                functionName: () => exportarExcelDB()
+            },
+            "NOTAS":{
+                title:"NOTAS DEL TECNICO",
+                message:notas,
+                cancelText: "CANCELAR",
+                modalRender:2,
+                showBtn:false
+            },
+            "ERROR":{
+                title:"CAMPOS FALTANTES",
+                message:erroresCampos,
+                cancelText: "CANCELAR",
+                modalRender:2,
+                showBtn:false,
+            },
+            "SIN_REGISTROS":{
+                title:"SIN REGISTROS",
+                message:"No hay registros para exportar la tabla a un excel, por favor agregue registros para continuar",
+                cancelText: "CANCELAR",
+                modalRender:1,
+                showBtn:false,
+            },
+            "REGISTROS_NO_GUARDADOS":{
+                title:"REGISTROS SIN GUARDAR",
+                message:"Hay registros que todavia no han sido guardados, ¿Desea continuar?",
+                confirmText: "CONTINUAR",
+                cancelText: "CANCELAR",
+                showBtn:true,
+                modalRender:1,
+                hasFunction:true,
+                functionName:() => exportarExcelDB()
+            },
+            "HISTORIAL":{
+                title:"HISTORIAL DEL TECNICO",
+                modalRender:3,
+            },
     }
     useEffect(() => {
         const handleResize = () => {

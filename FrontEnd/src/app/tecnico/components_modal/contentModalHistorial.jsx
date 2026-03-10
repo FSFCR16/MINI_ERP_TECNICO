@@ -9,7 +9,7 @@ export function ModalHistorial({title,setIsOpen,setError,nombre,setLoading}) {
     const [historialFiltrado, setHistorialFiltrado] = useState([])
     const [busqueda, setBusqueda] = useState("")
     const router = useRouter()
-
+    
     useEffect(() => {
 
         const cargarHistorial = async () => {

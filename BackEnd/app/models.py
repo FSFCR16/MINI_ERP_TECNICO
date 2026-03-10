@@ -28,8 +28,12 @@ class registrosSchemma(Base):
     __tablename__ = "registros_semanas"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    tecnico_id = Column(Integer, ForeignKey("tecnicos.id"), nullable=False)
-    semana_id = Column(Integer, ForeignKey("semanas_tecnico.id"), nullable=False)
+    tecnico_id = Column(Integer, ForeignKey("tecnicos.id",ondelete="CASCADE"), nullable=False)
+    semana_id = Column(
+        Integer,
+        ForeignKey("semanas_tecnico.id", ondelete="CASCADE"),
+        nullable=False
+    )
     nombre = Column(String, nullable=False)
     job = Column(String, nullable=True)
     job_name = Column(String, nullable=True)
@@ -71,4 +75,4 @@ class SemanaTecnico(Base):
     )
 
     # 🔹 Relaciones (opcional pero recomendado)
-    registros = relationship("registrosSchemma", back_populates="semana", cascade="all, delete")
+    registros = relationship("registrosSchemma", back_populates="semana", cascade="all, delete-orphan")
