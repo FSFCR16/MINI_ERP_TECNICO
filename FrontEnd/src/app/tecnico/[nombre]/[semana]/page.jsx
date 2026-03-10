@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { Fragment } from "react";
 import { useParams } from "next/navigation"
 import { confirmarTecnico, ValidarSemanaTecnico,envioTablaDB,getRegistrosPrevios,eleiminarRegistrosDb,exportarExcelDBPost } from "../../../../Services/tencicosServices.js"
-import { procesarDatosTecnico,procesarData } from "../../../../Utils/api.js"
+import { procesarDatosTecnico,procesarData,formatearFechaSemana} from "../../../../Utils/api.js"
 import {MobileView} from "./components/MobileView.jsx";
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js';
 import { ContentList } from '../../components_modal/content_list.jsx';
@@ -33,6 +33,8 @@ export default function Page() {
     const [registrosLocalStroge, setRegistrosLocalStorage] = useState([])
     const [activeCell, setActiveCell] = useState(null)
     const [activeHeader, setActiveHeader] = useState(null)
+    const [fechaInicio, setfechaInicio] = useState("")
+    const [fechaFin, setfechaFin] = useState("")
 
     const configModal = {
         "FINALIZAR":{
@@ -107,7 +109,13 @@ export default function Page() {
                 const registrosLocalStorage = JSON.parse(localStorage.getItem(`registrosTemporales_${nombre}_${semana}`)) || []
                 setRegistrosLocalStorage(registrosLocalStorage)
 
-                await ValidarSemanaTecnico();
+                const semanaFecha= await ValidarSemanaTecnico();
+                const fechaInicio = formatearFechaSemana(semanaFecha.fecha_inicio)
+                const fechaFin = formatearFechaSemana(semanaFecha.fecha_fin)
+                
+                setfechaInicio(fechaInicio)
+                setfechaFin(fechaFin)
+
                 const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(err => {
                     console.warn("No se pudieron obtener los registros previos:", err.message);
                     return []
@@ -360,12 +368,27 @@ export default function Page() {
                 procesarDatosTecnico={procesarDatosTecnico}
                 setNotas={setNotas}
                 isMobile={isMobile}
+                fechaInicio={fechaInicio}
+                fechaFin={fechaFin}
+                nombre = {nombre}
             />
         ) : (
         <div className="h-screen w-full flex justify-center overflow-hidden bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 px-4 py-4">
 
             <div className="w-full max-w-[1250px] flex flex-col gap-4 h-full">
 
+                {/* ===================== INFO TECNICO Y SEMANA ===================== */}
+                <div className="w-full bg-white/70 backdrop-blur-sm rounded-xl shadow-sm px-4 py-2 flex flex-wrap items-center gap-6 text-sm text-slate-700">
+
+                    <div>
+                        Técnico: <span>{nombre}</span>
+                    </div>
+
+                    <div>
+                        Semana: {fechaInicio} / {fechaFin} {new Date().getFullYear()}
+                    </div>
+
+                </div>
                 {/* ===================== TABLA SUPERIOR ===================== */}
                 <section className="w-full flex-1 min-h-0 overflow-hidden rounded-2xl shadow-xl bg-white/70 backdrop-blur-xl border border-white/40">
 

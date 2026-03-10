@@ -19,7 +19,10 @@ export function MobileView({
   baseRef,
   procesarDatosTecnico,
   setNotas,
-  isMobile
+  isMobile,
+  fechaInicio,
+  fechaFin,
+  nombre
 }) {
 
   return (
@@ -31,7 +34,13 @@ export function MobileView({
         <h2 className="font-semibold text-slate-800 text-sm">
           Nuevo Registro
         </h2>
+        <div className="flex justify-start items-center text-xs text-slate-600 bg-white/40 border border-white/40 rounded-xl px-3 py-2">
 
+          <span>
+            {fechaInicio} / {fechaFin} {new Date().getFullYear()}
+          </span>
+
+        </div>
         {columnasTablaEditable.map((col, index) => {
           return (
             <div key={col.key} className="flex flex-col gap-1">
