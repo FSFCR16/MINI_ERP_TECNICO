@@ -1,5 +1,6 @@
 export function procesarDatosTecnico(datos, datosPrevios = null) {
   // Función que crea la base de un trabajo
+  console.log(datos, datosPrevios)
   const crearBase = (dato) => {
     console.log(dato)
     const base = {
@@ -52,7 +53,6 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
     if (!datosPrevios) {
       return base;
     }
-
     // Solo sobreescribimos si el job coincide
     if (datosPrevios.job === dato.job) {
       console.log({ ...base, ...datosPrevios })
@@ -63,6 +63,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
 
   // 🔹 Si datos es lista → iteramos
   if (Array.isArray(datos)) {
+    console.log(datos)
     return datos.map(dato => combinarConPrevios(dato)).filter(dat=>(dat));
   }
   // 🔹 Si datos es un solo objeto → procesamos directamente
@@ -99,7 +100,7 @@ export function formatoFinal() {
   return `${isoYear}_${mes}_semana_${String(isoWeek).padStart(2, "0")}`;
 }
 
-function formatearNumero(num) {
+export function formatearNumero(num) {
     return Number.isInteger(num) 
         ? num 
         : Number(num.toFixed(2))
@@ -295,31 +296,5 @@ export function formatearFechaSemana(fecha){
   const fechaFormato = `${fecha.split("-")[2]} -${meses[Number(fecha.split("-")[1])]}`
 
   return fechaFormato
-
-}
-
-export function filtrarHistorial(texto) {
-
- const palabras = texto
-   .toLowerCase()
-   .trim()
-   .split(" ")
-
- const filtrados = historialOriginal.filter(item => {
-
-   const textoRegistro = `
-     ${item.nombre}
-     ${item.fecha_inicio}
-     ${item.fecha_fin}
-     ${item.total_registros}
-   `.toLowerCase()
-
-   return palabras.every(p =>
-      textoRegistro.includes(p)
-   )
-
- })
-
- setHistorialFiltrado(filtrados)
 
 }

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana
+from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
 from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana
 from typing import List
 
@@ -32,6 +32,10 @@ async def consultar_tecnico(nombre: str, db: Session = Depends(get_db)):
 async def validarInformacion(db: Session = Depends(get_db)):
     return validarTecnicoSemana(db)
 
+@router.post("/parsear-mensaje")
+async def parsearMensaje(body: dict):
+    resultado = parse_ticket(body["mensaje"])
+    return resultado
 
 @router.post("/registrosDataBase")
 async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):

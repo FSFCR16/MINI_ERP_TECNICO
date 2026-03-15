@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { Fragment } from "react";
 import { useParams } from "next/navigation"
 import { confirmarTecnico, ValidarSemanaTecnico,envioTablaDB,getRegistrosPrevios,eleiminarRegistrosDb,exportarExcelDBPost } from "../../../../Services/tencicosServices.js"
-import { procesarDatosTecnico,procesarData,formatearFechaSemana} from "../../../../Utils/api.js"
+import { procesarDatosTecnico,procesarData,formatearFechaSemana, formatearNumero} from "../../../../Utils/api.js"
 import {MobileView} from "./components/MobileView.jsx";
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js';
 import { ContentList } from '../../components_modal/content_list.jsx';
@@ -13,7 +13,8 @@ import { LoadingOverlay } from '@/Components/loadingOverlay.jsx';
 import { columnasBase } from './tableRow/columnasBase.jsx';
 import { CellRenderer } from './tableRow/renderCell.jsx';
 import { ModalHistorial } from '../../components_modal/contentModalHistorial.jsx';
-
+import { ModalAutoMessage } from "../../../tecnico/components_modal/messageModal.jsx"
+import { ModalCamposFaltantes } from "../../../tecnico/components_modal/modalCamposFatantes.jsx"
 export default function Page() {
 
     const { nombre, semana} = useParams();
@@ -36,6 +37,8 @@ export default function Page() {
     const [activeHeader, setActiveHeader] = useState(null)
     const [fechaInicio, setfechaInicio] = useState("")
     const [fechaFin, setfechaFin] = useState("")
+    const [resultadoParcial, setResultadoParcial] = useState(null)
+    const [camposFaltantes, setCamposFaltantes] = useState([])
 
     const configModal = {
             "FINALIZAR":{
@@ -93,6 +96,14 @@ export default function Page() {
                 title:"HISTORIAL DEL TECNICO",
                 modalRender:3,
             },
+            "AUTO_MESSAGE":{
+                title:"AUTO COMPLETE MENSAJE",
+                modalRender:4
+            },
+            "CAMPOS_FALTANTES": {
+                title: "DATOS FALTANTES",
+                modalRender: 5
+}
     }
     useEffect(() => {
         const handleResize = () => {
@@ -129,9 +140,11 @@ export default function Page() {
                 const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
                     procesarDatosTecnico(infoTecnico,dato)
                 );
-                
+
+                console.log(dataPreviaProcesada)
                 const registrosCompletos = [...dataPreviaProcesada, ...registrosLocalStorage]
                 // Limpiar estado antes de actualizar
+                console.log(registrosCompletos)
                 setListRegistros([]); 
                 setListRegistros(registrosCompletos);
                 setData(infoTecnico || []);
@@ -225,6 +238,7 @@ export default function Page() {
         setErroresCampos([])
         setListRegistros(prev => [...prev,rowCopy])
         setRegistrosLocalStorage(prev => [...prev, rowCopy])
+        setRow(procesarDatosTecnico(data[0]))
         localStorage.setItem(`registrosTemporales_${nombre}_${semana}`, JSON.stringify(registrosLocalStroge))
     }
 
@@ -349,6 +363,46 @@ export default function Page() {
         inputsReferencias.current[0][index] = el;
     };
 
+    function procesarMensaje(result) {
+        try {
+            setRow(prev => {
+                const newRow = { ...prev }
+
+                if (result.job_name)
+                    newRow.job_name = result.job_name.toUpperCase()
+
+                if(data[0].job !== "TODO"){
+                    if (result.job_type && ["LOCKOUT", "CAR KEY"].includes(result.job_type))
+                        newRow.job = result.job_type.toUpperCase()
+                }
+
+                if (result.valor_servicio)
+                    newRow.valor_servicio = result.valor_servicio
+
+                if (result.valor_efectivo)
+                    newRow.valor_efectivo = result.valor_efectivo
+
+                if (result.valor_tarjeta)
+                    newRow.valor_tarjeta = result.valor_tarjeta
+
+                if (result.parts_tecnico)
+                    newRow.partes_tecnico = result.parts_tecnico
+                
+                if (result.parts_gil)
+                    newRow.partes_gil = result.parts_gil
+
+                if (result.tipo_pago)
+                    newRow.tipo_pago = result.tipo_pago.toUpperCase()
+
+                return newRow
+            })
+
+        } catch (err) {
+            console.error(err)
+            setError("No se pudo interpretar el mensaje")
+        }
+    }
+    console.log(camposFaltantes, modalTipo, procesarMensaje)
     return (
     <>
         {loading && <LoadingOverlay />}
@@ -517,7 +571,7 @@ export default function Page() {
                                                         activeCell === cellKey ? "animate-scrollText" : "truncate"
                                                         }`}
                                                         >
-                                                        {value}
+                                                        {Number.isFinite(value)?formatearNumero(value): value}
                                                         </span>
                                                     </div>
 
@@ -615,7 +669,18 @@ export default function Page() {
 
                     {/* ===================== BOTONES ===================== */}
                     <div className="w-full flex flex-wrap justify-end gap-3">
-
+                        <button
+                        className="px-5 py-1.5 flex items-center gap-2 text-sm rounded-xl
+                        bg-white/40 backdrop-blur-xl border border-white/40
+                        text-indigo-600 font-medium shadow-md
+                        hover:bg-white/60 active:scale-95 transition-all duration-200 cursor-pointer"
+                        onClick={()=>{
+                            setIsOpen(true)
+                            setModalTipo("AUTO_MESSAGE")
+                        }}
+                        >
+                        💬 MENSAJE
+                        </button>
                         <button
                             className="px-5 py-1.5 text-sm rounded-xl bg-white/50 backdrop-blur-xl border border-white/40 text-green-600 font-medium shadow-md hover:bg-white hover:shadow-lg active:scale-95 transition-all duration-200 cursor-pointer"
                             onClick={clickExportExcel}
@@ -724,10 +789,30 @@ export default function Page() {
                                 nombre={nombre}              
                                 setLoading={setLoading}      
                             />}
+                            {(configModal[modalTipo]?.modalRender === 4) && (
+                                <ModalAutoMessage
+                                    title={configModal[modalTipo]?.title}
+                                    setIsOpen={setIsOpen}
+                                    setError={setError}
+                                    setLoading={setLoading}
+                                    procesarMensaje={procesarMensaje}
+                                    setModalTipo={setModalTipo}
+                                    setResultadoParcial={setResultadoParcial}
+                                    setCamposFaltantes={setCamposFaltantes}
+                                />
+                            )}
+                            {(configModal[modalTipo]?.modalRender === 5) && (
+                                <ModalCamposFaltantes
+                                    title={configModal[modalTipo]?.title}
+                                    faltantes={camposFaltantes}
+                                    resultadoParcial={resultadoParcial}
+                                    setIsOpen={setIsOpen}
+                                    procesarMensaje={procesarMensaje}
+                                />
+                            )}
                         </DialogPanel>
                     </Transition.Child>
                     </div>
-
                 </Dialog>
         </Transition>
     </>

@@ -8,6 +8,11 @@ from typing import List
 from sqlalchemy import func, desc
 import pandas as pd
 from io import BytesIO
+import re
+import json
+import os
+from dotenv import load_dotenv
+from groq import Groq
 
 def obtener_nombres(db: Session):
     resultados = db.query(Trabajo).all()
@@ -424,3 +429,125 @@ def eliminarTecnicoSemana(data, db: Session):
     db.commit()
 
     return {"message": "Registros del técnico eliminados correctamente"}
+
+
+APIKEY = os.getenv("API_KEY_GROQ")
+client = Groq(api_key=APIKEY)
+# ══════════════════════════════════════════════════════════════
+#  PROMPT
+# ══════════════════════════════════════════════════════════════
+SYSTEM_PROMPT = """
+Eres un extractor de datos de tickets de servicio de cerrajería.
+Devuelve SOLO un JSON válido. Sin texto extra, sin markdown, sin explicaciones.
+ 
+━━━ REGLAS GENERALES ━━━
+- Si un campo no está claro en el mensaje → null
+- NUNCA inventes datos
+- NUNCA combines datos de campos distintos
+ 
+━━━ REGLAS DE DINERO ━━━
+ 
+Un número ES dinero relevante SOLO si cumple alguna de estas condiciones:
+1. Está acompañado de contexto de cash (cash, efectivo)
+2. Está acompañado de contexto de crédito (cc, card, credit, scanpay, zelle)
+3. Está acompañado de contexto de partes (parts, ccf, parts gil)
+4. Por el contexto del mensaje parece ser el valor final del servicio
+ 
+Si un número NO cumple ninguna — ignorarlo completamente.
+ 
+PARTES (NO son el valor del servicio, nunca se suman):
+- "20$ parts Afik" → parts_tecnico=20, parts_tecnico_nombre="Afik"
+- "50$ parts"      → parts_tecnico=50, parts_tecnico_nombre=null
+- "parts gil"      → parts_gil=ese valor
+ 
+TIPO DE PAGO — solo 3 valores posibles: "CASH", "CC", "MIXTO":
+- Variantes de CASH: cash, efectivo
+- Variantes de CC: cc, credit, credit card, scanpay, card, zelle, paid to (nombre)
+- Si aparecen CASH y CC en el mismo mensaje → "MIXTO"
+- Si no hay ninguna variante → null
+- SIEMPRE devolver uno de: "CASH", "CC", "MIXTO", null — nunca otro valor
+ 
+JOB TYPE — solo 2 valores posibles: "CAR KEY", "LOCKOUT":
+- Variantes de CAR KEY: car key, car key made, key made, key program, key programming
+- Variantes de LOCKOUT: lockout, car lockout, lock out, locked out, lock change, lock
+- Si no hay ninguna variante clara → null
+- SIEMPRE devolver uno de: "CAR KEY", "LOCKOUT", null — nunca otro valor
+ 
+VALOR DEL SERVICIO (valor_servicio):
+- Si hay cash + cc → el total ya aparece explícito en el mensaje, ese es valor_servicio
+- Si hay solo cash → valor_servicio = ese monto
+- Si hay solo cc   → valor_servicio = ese monto
+- Si hay un número solo que por contexto parece el total → valor_servicio = ese número
+- NUNCA sumes partes al valor_servicio
+- Si no puedes determinarlo → null
+ 
+VALOR EN EFECTIVO (valor_efectivo):
+- El monto específico pagado en cash
+- Solo si aparece explícito → si no, null
+ 
+VALOR CON TARJETA (valor_tarjeta):
+- El monto específico pagado con tarjeta/cc/scanpay/zelle
+- Solo si aparece explícito → si no, null
+ 
+━━━ CAMPOS A EXTRAER ━━━
+ 
+{
+  "company":               "nombre de la empresa | null",
+  "job_name":              "código o número del ticket (ej: TLER-BCPS, AKBZH7, 5PVLF) | null",
+  "nombre":                "nombre del cliente | null",
+  "job_type":              "tipo de servicio en inglés (ej: Car Key, Lock Change, Lockout, Car Lockout) | null",
+  "date":                  "fecha como aparezca en el mensaje | null",
+  "time":                  "hora como aparezca en el mensaje | null",
+  "address":               "dirección completa | null",
+  "phone":                 "teléfono principal del cliente | null",
+  "valor_servicio":        número o null,
+  "valor_efectivo":        número o null,
+  "valor_tarjeta":         número o null,
+  "tipo_pago":             "CASH | CC | MIXTO | null",
+  "parts_tecnico":         número o null,
+  "parts_tecnico_nombre":  "nombre del técnico | null",
+  "parts_gil":             número o null
+}
+"""
+ 
+ 
+# ══════════════════════════════════════════════════════════════
+#  FUNCIÓN PRINCIPAL
+# ══════════════════════════════════════════════════════════════
+ 
+def parse_ticket(text: str) -> dict:
+    """
+    Le pasa el mensaje a la IA y devuelve el JSON limpio.
+    Los campos que la IA no pueda identificar vienen en null —
+    es tu código el que decide qué hacer con esos nulls.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            temperature=0,        # Sin creatividad — solo extracción
+            max_tokens=600,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": text}
+            ]
+        )
+ 
+        raw = response.choices[0].message.content.strip()
+        raw = re.sub(r"```json|```", "", raw).strip()
+        result = json.loads(raw)
+
+        # Agregar lista de campos faltantes al resultado
+        faltantes = [f for f in ["job_type", "tipo_pago"] if not result.get(f)]
+        result["faltantes"] = faltantes
+        print(result)
+        return result
+
+ 
+    except json.JSONDecodeError:
+        print(f"[ERROR] La IA no devolvió JSON válido:\n{raw}")
+        return {}
+    except Exception as e:
+        print(f"[ERROR] Fallo en la API: {e}")
+        return {}
+ 
+ 

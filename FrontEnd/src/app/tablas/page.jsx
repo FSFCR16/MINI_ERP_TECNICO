@@ -6,6 +6,7 @@ import { LoadingOverlay } from "@/Components/loadingOverlay.jsx"
 import { useRouter } from "next/navigation"
 import { DialogPanel, Transition, TransitionChild, Dialog } from '@headlessui/react'
 import { ContentNoList } from '../tecnico/components_modal/content_noList.jsx'
+import { formatearNumero } from "@/Utils/api.js"
 
 export default function Page() {
 
@@ -278,7 +279,7 @@ export default function Page() {
                                             </span>
 
                                             <span className="px-3 py-1 rounded-xl bg-white/40 border border-white/40 text-sm font-semibold text-slate-700">
-                                            {totalSemana}
+                                            {formatearNumero(totalSemana)}
                                             </span>
 
                                         </div>
@@ -402,7 +403,7 @@ export default function Page() {
 
                                             <div className="flex items-center gap-1 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-100">
                                             <span className="font-semibold text-indigo-700">
-                                                {cart.total}
+                                                {formatearNumero(cart.total)}
                                             </span>
                                             <span className="text-xs text-indigo-500">
                                                 total

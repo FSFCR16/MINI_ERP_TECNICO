@@ -122,9 +122,9 @@ export class TicketParser {
 
         if (!this.fields.job_type) return
 
-        const job = this.fields.job_type.toLowerCase()
+        const job = this.fields.job_type.toLowerCase().replace(/\s+/g,"")
 
-        if (job.includes("car"))
+        if (job.includes("carkey") || job.includes("car-key"))
             this.fields.job_type = "CAR KEY"
 
         else if (job.includes("lock"))
@@ -307,14 +307,30 @@ export class TicketParser {
                 const { value, context, score } = item
                 console.log(item, "item")
                 if (context === "cash") {
+
+                    if (money.cash > 0 && value < money.cash) {
+                        money.tip += value
+                        continue
+                    }
+
                     money.cash += value
                     continue
                 }
 
                 if (context === "credit") {
+
+                    // si ya hay un credit grande registrado,
+                    // y aparece un valor pequeño después,
+                    // probablemente es tip o ajuste
+                    if (money.credit > 0 && value < money.credit) {
+                        money.tip += value
+                        continue
+                    }
+
                     money.credit += value
                     continue
                 }
+
                 if (context === "parts") {
                     money.parts += value
                     continue

@@ -152,3 +152,20 @@ export async function eliminarTecnicoSemana(nombre, semana_id) {
 
   return res.json()
 }
+
+export async function parsearMensaje(mensaje) {
+    console.log(mensaje)
+    const res = await fetch(`${APIURL}/api/parsear-mensaje`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mensaje })
+    })
+
+    if (!res.ok) {
+        throw new Error("Error procesando mensaje")
+    }
+
+    return res.json()
+}
