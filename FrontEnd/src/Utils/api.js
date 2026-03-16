@@ -1,4 +1,4 @@
-export function procesarDatosTecnico(datos, datosPrevios = null) {
+export function procesarDatosTecnico(datos, datosPrevios = null, mensaje = false) {
   // Función que crea la base de un trabajo
   console.log(datos, datosPrevios)
   const crearBase = (dato) => {
@@ -46,17 +46,37 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
   };
 
   // Función que combina base + datosPrevios si coincide el job
-  const combinarConPrevios = (dato) => {
+  const combinarConPrevios = (dato, mensaje) => {
     const base = crearBase(dato);
     const idtecnico =crypto.randomUUID()
     // Si no hay datosPrevios, devolvemos la base directamente
     if (!datosPrevios) {
       return base;
     }
+    console.log(base)
+    console.log(datosPrevios)
     // Solo sobreescribimos si el job coincide
     if (datosPrevios.job === dato.job) {
-      console.log({ ...base, ...datosPrevios })
-      return { ...base, ...datosPrevios, nuevo:false, id:idtecnico};
+      console.log(mensaje)
+      if(mensaje) {
+        const resultado = {
+          ...base,
+          job_name:datosPrevios.job_name,
+          valor_servicio: datosPrevios.valor_servicio,
+          valor_efectivo: datosPrevios.valor_efectivo,
+          valor_tarjeta: datosPrevios.valor_tarjeta,
+          partes_tecnico: datosPrevios.partes_tecnico,
+          partes_gil: datosPrevios.partes_gil,
+          tipo_pago: datosPrevios.tipo_pago,
+          subtotal: datosPrevios.subtotal,
+          tech: datosPrevios.tech,
+          total: datosPrevios.total
+        }
+
+        return resultado
+      }
+
+      return {...base,...datosPrevios, nuevo:false, id:idtecnico};
     }
 
   };
@@ -64,7 +84,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null) {
   // 🔹 Si datos es lista → iteramos
   if (Array.isArray(datos)) {
     console.log(datos)
-    return datos.map(dato => combinarConPrevios(dato)).filter(dat=>(dat));
+    return datos.map(dato => combinarConPrevios(dato, mensaje)).filter(dat=>(dat));
   }
   // 🔹 Si datos es un solo objeto → procesamos directamente
   return crearBase(datos)

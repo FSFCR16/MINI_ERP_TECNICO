@@ -297,11 +297,9 @@ export default function Page() {
                 console.warn("No se pudieron obtener los registros previos:", err.message);
                 return []
             });
-            console.log(registrosPrevios)
             const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
                     procesarDatosTecnico(data,dato)
             );
-            console.log(dataPreviaProcesada)
             setListRegistros(dataPreviaProcesada)
 
         } catch (error) {
@@ -331,7 +329,6 @@ export default function Page() {
         try {
             setIsOpen(false)
             setLoading(true)
-            console.log(listRegistro)
             const regustrosGuardados = listRegistro.filter(e => (e.id_registro))
             if(!regustrosGuardados.length){
                 setModalTipo("SIN_REGISTROS")
@@ -364,16 +361,19 @@ export default function Page() {
     };
 
     function procesarMensaje(result) {
-        try {
+        try {   
+            console.log(result)
             setRow(prev => {
-                const newRow = { ...prev }
-
+                let newRow = { ...prev }
+                let found;
                 if (result.job_name)
                     newRow.job_name = result.job_name.toUpperCase()
 
                 if(data[0].job !== "TODO"){
                     if (result.job_type && ["LOCKOUT", "CAR KEY"].includes(result.job_type))
                         newRow.job = result.job_type.toUpperCase()
+                    found = data.find((d) => d.job === result.job_type);
+                    console.log(data,found)
                 }
 
                 if (result.valor_servicio)
@@ -393,8 +393,8 @@ export default function Page() {
 
                 if (result.tipo_pago)
                     newRow.tipo_pago = result.tipo_pago.toUpperCase()
-
-                return newRow
+                if(data.length>1) return procesarDatosTecnico([found], newRow, true)[0]
+                return procesarDatosTecnico(data, newRow, true)[0]
             })
 
         } catch (err) {
@@ -402,7 +402,6 @@ export default function Page() {
             setError("No se pudo interpretar el mensaje")
         }
     }
-    console.log(camposFaltantes, modalTipo, procesarMensaje)
     return (
     <>
         {loading && <LoadingOverlay />}
