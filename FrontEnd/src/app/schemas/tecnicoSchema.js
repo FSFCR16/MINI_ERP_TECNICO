@@ -21,7 +21,6 @@ export const tecnicoSchema = z.object({
   valor_tarjeta: z.coerce.number(),
   valor_efectivo: z.coerce.number(),
   porcentaje_cc: z.coerce.number(),
-  subtotal: z.coerce.number(),
   total: z.coerce.number()
 }).superRefine((data, ctx) => {
 

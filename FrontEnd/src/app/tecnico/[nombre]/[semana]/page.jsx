@@ -394,9 +394,9 @@ export default function Page() {
                     newRow.job_name = result.job_name.toUpperCase()
 
                 if(data[0].job !== "TODO"){
-                    if (result.job_type && ["LOCKOUT", "CAR KEY"].includes(result.job_type))
+                    if (result.job_type && ["LOCKOUT", "CARKEY"].includes(result.job_type.replace(/\s+/g, "")))
                         newRow.job = result.job_type.toUpperCase()
-                    found = data.find((d) => d.job === result.job_type);
+                    found = data.find((d) => d.job.replace(/\s+/g, "") === result.job_type.replace(/\s+/g, ""));
                     console.log(data,found)
                 }
 
@@ -417,7 +417,8 @@ export default function Page() {
 
                 if (result.tipo_pago)
                     newRow.tipo_pago = result.tipo_pago.toUpperCase()
-
+                
+                console.log(found)
                 if(data.length>1) return procesarDatosTecnico([found], newRow, true)[0]
                 return procesarDatosTecnico(data, newRow, true)[0]
             })

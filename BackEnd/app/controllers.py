@@ -502,13 +502,13 @@ VALOR CON TARJETA (valor_tarjeta):
   "time":                  "hora como aparezca en el mensaje | null",
   "address":               "dirección completa | null",
   "phone":                 "teléfono principal del cliente | null",
-  "valor_servicio":        número o null,
-  "valor_efectivo":        número o null,
-  "valor_tarjeta":         número o null,
+  "valor_servicio":        número o 0,
+  "valor_efectivo":        número o 0,
+  "valor_tarjeta":         número o 0,
   "tipo_pago":             "CASH | CC | MIXTO",
-  "parts_tecnico":         número o null,
-  "parts_tecnico_nombre":  "nombre del técnico | null",
-  "parts_gil":             número o null
+  "parts_tecnico":         número o 0,
+  "parts_tecnico_nombre":  "nombre del técnico | 0",
+  "parts_gil":             número o 0
 }
 """
  
