@@ -57,7 +57,6 @@ export function procesarDatosTecnico(datos, datosPrevios = null, mensaje = false
     console.log(datosPrevios)
     // Solo sobreescribimos si el job coincide
     if (datosPrevios.job === dato.job) {
-      console.log(mensaje)
       if(mensaje) {
         const resultado = {
           ...base,
@@ -70,7 +69,8 @@ export function procesarDatosTecnico(datos, datosPrevios = null, mensaje = false
           tipo_pago: datosPrevios.tipo_pago,
           subtotal: datosPrevios.subtotal,
           tech: datosPrevios.tech,
-          total: datosPrevios.total
+          total: datosPrevios.total,
+          id_registro: null
         }
 
         return resultado

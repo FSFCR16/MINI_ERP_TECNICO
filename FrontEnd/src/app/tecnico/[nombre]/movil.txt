@@ -236,7 +236,6 @@ export function MobileView({
         </button>
         <button
           className="flex-1 py-2 text-xs rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 text-sky-600 font-semibold shadow-sm active:scale-95 transition"
-          onClick={() => { setIsOpen(true); setModalTipo("FINALIZAR"); }}  // ← esto faltaba
         >
           Finalizar
         </button>

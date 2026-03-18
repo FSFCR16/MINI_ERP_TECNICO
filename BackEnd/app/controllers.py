@@ -63,7 +63,7 @@ def traerInformacionTecnico(db: Session, nombre: str):
     return informacion
 
 def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
-
+    print(registros)
     if not registros:
         raise HTTPException(
             status_code=400,
