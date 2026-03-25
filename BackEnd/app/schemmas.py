@@ -77,3 +77,6 @@ class SemanaRequest(BaseModel):
 class infoSemana(BaseModel):
     semana_id: int
     nombre: str
+
+class SemanaBody(BaseModel):
+    semana: Optional[str] = None  # si viene None, usa la actual

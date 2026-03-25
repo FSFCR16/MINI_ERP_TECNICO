@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
 from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
-from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana
+from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,SemanaBody
 from typing import List
 
 
@@ -29,8 +29,8 @@ async def consultar_tecnico(nombre: str, db: Session = Depends(get_db)):
 
 
 @router.post("/validarSemana")
-async def validarInformacion(db: Session = Depends(get_db)):
-    return validarTecnicoSemana(db)
+async def validarInformacion(body: SemanaBody, db: Session = Depends(get_db)):
+    return validarTecnicoSemana(db, body.semana)
 
 @router.post("/parsear-mensaje")
 async def parsearMensaje(body: dict):

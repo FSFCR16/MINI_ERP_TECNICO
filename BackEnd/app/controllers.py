@@ -22,7 +22,18 @@ def obtener_nombres(db: Session):
     return sorted(list(set(list_resultado)))
 
 
-def validarTecnicoSemana(db: Session):
+def validarTecnicoSemana(db: Session, semana_label: str = None):
+    
+    # Si viene un label específico, solo buscar — no crear
+    if semana_label:
+        registro = db.query(SemanaTecnico).filter(
+            SemanaTecnico.semana == semana_label
+        ).first()
+        if not registro:
+            raise HTTPException(status_code=404, detail="Semana no encontrada")
+        return registro
+
+    # Flujo normal — buscar o crear la semana actual
     label, year, numSemana = semana_actual()
     fecha_inicio, fecha_fin = obtener_rango_semana()
 
@@ -40,11 +51,9 @@ def validarTecnicoSemana(db: Session):
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin
     )
-
     db.add(registro)
     db.commit()
     db.refresh(registro)
-
     return registro
 
 

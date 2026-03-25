@@ -16,11 +16,11 @@ export async function confirmarTecnico(nombre) {
     return await res.json();
 }
 
-export async function ValidarSemanaTecnico() {
+export async function ValidarSemanaTecnico(semana = null) {
     const res = await fetch(`${APIURL}/api/validarSemana`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ semana }), // null si es flujo normal, label si viene del historial
     });
     if (!res.ok) throw new Error("Error al validar la semana del tecnico");
     return await res.json();

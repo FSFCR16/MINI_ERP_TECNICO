@@ -129,7 +129,7 @@ export default function Page() {
                 const registrosLocalStorage = JSON.parse(localStorage.getItem(`registrosTemporales_${nombre}_${semana}`)) || []
                 setRegistrosLocalStorage(registrosLocalStorage)
 
-                const semanaFecha= await ValidarSemanaTecnico();
+                const semanaFecha = await ValidarSemanaTecnico(semana);
                 const fechaInicio = formatearFechaSemana(semanaFecha.fecha_inicio)
                 const fechaFin = formatearFechaSemana(semanaFecha.fecha_fin)
                 
