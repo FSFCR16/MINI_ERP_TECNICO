@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 
 
 class TecnicoRequest(BaseModel):
@@ -80,3 +80,8 @@ class infoSemana(BaseModel):
 
 class SemanaBody(BaseModel):
     semana: Optional[str] = None  # si viene None, usa la actual
+# En schemmas.py añade esto
+
+class EnvioRegistrosBody(BaseModel):
+    semana: str
+    registros: List[SemanaTecnicoSchemaFront]

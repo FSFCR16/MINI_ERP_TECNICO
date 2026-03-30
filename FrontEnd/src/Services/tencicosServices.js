@@ -26,11 +26,21 @@ export async function ValidarSemanaTecnico(semana = null) {
     return await res.json();
 }
 
-export async function envioTablaDB(listaRegistros) {
+// export async function envioTablaDB(listaRegistros) {
+//     const res = await fetch(`${APIURL}/api/registrosDataBase`, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(listaRegistros),
+//     });
+//     if (!res.ok) throw new Error("No fue posible enviar los registros a la DB");
+//     return await res.json();
+// }
+
+export async function envioTablaDB(listaRegistros, semana) {
     const res = await fetch(`${APIURL}/api/registrosDataBase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(listaRegistros),
+        body: JSON.stringify({ registros: listaRegistros, semana }),
     });
     if (!res.ok) throw new Error("No fue posible enviar los registros a la DB");
     return await res.json();

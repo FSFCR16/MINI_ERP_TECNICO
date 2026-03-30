@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
 from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
-from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,SemanaBody
+from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
 
@@ -37,9 +37,13 @@ async def parsearMensaje(body: dict):
     resultado = parse_ticket(body["mensaje"])
     return resultado
 
+# @router.post("/registrosDataBase")
+# async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):
+#     return envioRegistrosDB(registros, db)
+
 @router.post("/registrosDataBase")
-async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):
-    return envioRegistrosDB(registros, db)
+async def envioRegistrosRoute(body: EnvioRegistrosBody, db: Session = Depends(get_db)):
+    return envioRegistrosDB(body.registros, db, body.semana)
 
 @router.get("/historial-semanas")
 async def obtenerSemanasRoute(db: Session = Depends(get_db)):

@@ -164,7 +164,7 @@ export default function Page() {
             cargarDatos();
         }
 
-    }, [nombre]);
+    }, [nombre, semana]);
     useEffect(() => {
         let base = {}
         if (!data || data.length === 0) {
@@ -315,7 +315,7 @@ export default function Page() {
             reg => reg.id_registro === null || reg.id_registro === undefined || reg.id_registro === ''
             )
             console.log(registrosFiltrados, listRegistro)
-            const resultado = await envioTablaDB(registrosFiltrados)
+            const resultado = await envioTablaDB(registrosFiltrados, semana)
 
             const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(err => {
                 console.warn("No se pudieron obtener los registros previos:", err.message);

@@ -23,31 +23,53 @@ def obtener_nombres(db: Session):
 
 
 def validarTecnicoSemana(db: Session, semana_label: str = None):
-    
-    # Si viene un label específico, solo buscar — no crear
+    # Siempre calculamos la semana actual
+    label_actual, year, numSemana = semana_actual()
+    fecha_inicio, fecha_fin = obtener_rango_semana()
+
+    # 🔹 CASO 1: Viene label
     if semana_label:
         registro = db.query(SemanaTecnico).filter(
             SemanaTecnico.semana == semana_label
         ).first()
-        if not registro:
-            raise HTTPException(status_code=404, detail="Semana no encontrada")
+
+        # Si existe → listo
+        if registro:
+            return registro
+
+        # Si NO existe → validar que sea la actual
+        if semana_label != label_actual:
+            raise HTTPException(
+                status_code=404,
+                detail="Semana no encontrada"
+            )
+
+        # Es la actual → se puede crear
+        registro = SemanaTecnico(
+            year_num=year,
+            numero_semana=numSemana,
+            semana=label_actual,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin
+        )
+        db.add(registro)
+        db.commit()
+        db.refresh(registro)
         return registro
 
-    # Flujo normal — buscar o crear la semana actual
-    label, year, numSemana = semana_actual()
-    fecha_inicio, fecha_fin = obtener_rango_semana()
-
+    # 🔹 CASO 2: NO viene label → flujo normal
     registro = db.query(SemanaTecnico).filter(
-        SemanaTecnico.semana == label
+        SemanaTecnico.semana == label_actual
     ).first()
 
     if registro:
         return registro
 
+    # Crear semana actual
     registro = SemanaTecnico(
         year_num=year,
         numero_semana=numSemana,
-        semana=label,
+        semana=label_actual,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin
     )
@@ -71,28 +93,19 @@ def traerInformacionTecnico(db: Session, nombre: str):
 
     return informacion
 
-def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
-    print(registros)
+def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, semana: str):
     if not registros:
-        raise HTTPException(
-            status_code=400,
-            detail="No se enviaron registros"
-        )
+        raise HTTPException(status_code=400, detail="No se enviaron registros")
 
-    label, year, numSemana = semana_actual()
-
+    # ← usa la semana que viene del frontend, no semana_actual()
     semanaDB = db.query(SemanaTecnico).filter(
-        SemanaTecnico.semana == label
+        SemanaTecnico.semana == semana
     ).first()
 
     if not semanaDB:
-        raise HTTPException(
-            status_code=404,
-            detail="La semana actual no existe en la base de datos"
-        )
+        raise HTTPException(status_code=404, detail="La semana solicitada no existe")
 
     try:
-
         registros_db = [{
             "tecnico_id": r.id_tecnico,
             "semana_id": semanaDB.id,
@@ -115,20 +128,69 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
 
         db.bulk_insert_mappings(registrosSchemma, registros_db)
         db.commit()
-
-        return {"message": "Registros agregados correctamente",
-                "registros": registros_db}
+        return {"message": "Registros agregados correctamente", "registros": registros_db}
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al insertar registros: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al insertar registros: {str(e)}")
+# def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
+#     print(registros)
+#     if not registros:
+#         raise HTTPException(
+#             status_code=400,
+#             detail="No se enviaron registros"
+#         )
 
-    except Exception as e:
-        db.rollback()
-        return 500, f"Error al insertar registros: {str(e)}"
+#     label, year, numSemana = semana_actual()
+
+#     semanaDB = db.query(SemanaTecnico).filter(
+#         SemanaTecnico.semana == label
+#     ).first()
+
+#     if not semanaDB:
+#         raise HTTPException(
+#             status_code=404,
+#             detail="La semana actual no existe en la base de datos"
+#         )
+
+#     try:
+
+#         registros_db = [{
+#             "tecnico_id": r.id_tecnico,
+#             "semana_id": semanaDB.id,
+#             "nombre": r.nombre,
+#             "job": r.job,
+#             "job_name": r.job_name,
+#             "valor_efectivo": r.valor_efectivo,
+#             "valor_tarjeta": r.valor_tarjeta,
+#             "valor_servicio": r.valor_servicio,
+#             "tipo_pago": r.tipo_pago,
+#             "partes_gil": r.partes_gil,
+#             "minimo": r.minimo,
+#             "partes_tecnico": r.partes_tecnico,
+#             "tech": r.tech,
+#             "porcentaje_tecnico": r.porcentaje_tecnico,
+#             "porcentaje_cc": r.porcentaje_cc,
+#             "subtotal": r.subtotal,
+#             "total": r.total,
+#         } for r in registros]
+
+#         db.bulk_insert_mappings(registrosSchemma, registros_db)
+#         db.commit()
+
+#         return {"message": "Registros agregados correctamente",
+#                 "registros": registros_db}
+
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error al insertar registros: {str(e)}"
+#         )
+
+#     except Exception as e:
+#         db.rollback()
+#         return 500, f"Error al insertar registros: {str(e)}"
 
 # def obtenerRegistrosSemana(semana:str, db: Session):
 
