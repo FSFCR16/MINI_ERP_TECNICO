@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import date
 from typing import Optional, List
+from pydantic import field_validator
 
 
 class TecnicoRequest(BaseModel):
@@ -39,7 +40,7 @@ class SemanaTecnicoSchema(BaseModel):
 
 
 class SemanaTecnicoSchemaFront(BaseModel):
-    id:str
+    id: str
     id_tecnico: int
     id_registro: Optional[int] = None
     nombre: str
@@ -48,7 +49,7 @@ class SemanaTecnicoSchemaFront(BaseModel):
     valor_servicio: float
     porcentaje_tecnico: float
     minimo: float
-    opciones_pago:list
+    opciones_pago: list
     tipo_pago: str
     valor_tarjeta: float
     valor_efectivo: float
@@ -58,11 +59,17 @@ class SemanaTecnicoSchemaFront(BaseModel):
     tech: float
     subtotal: float
     total: float
-    adicional_dolar:float
+    adicional_dolar: float
     notas: list
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def id_to_str(cls, v):
+        return str(v)
+
     class Config:
         orm_mode = True
-
+        
 class ResumenSemanaSchema(BaseModel):
     nombre: str
     semana_id: int

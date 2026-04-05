@@ -239,11 +239,12 @@ export default function Page() {
             rowCopy.valor_efectivo = 0
         }
         
-        setErroresCampos([])
-        setListRegistros(prev => [...prev,rowCopy])
-        setRegistrosLocalStorage(prev => [...prev, rowCopy])
+        // ✅ DESPUÉS
+        const nuevosRegistros = [...registrosLocalStroge, rowCopy]
+        setListRegistros(prev => [...prev, rowCopy])
+        setRegistrosLocalStorage(nuevosRegistros)
         setRow(procesarDatosTecnico(data[0]))
-        localStorage.setItem(`registrosTemporales_${nombre}_${semana}`, JSON.stringify(registrosLocalStroge))
+        localStorage.setItem(`registrosTemporales_${nombre}_${semana}`, JSON.stringify(nuevosRegistros))
     }
 
     const moverseEntreCeldas = (e, colIndex) => {

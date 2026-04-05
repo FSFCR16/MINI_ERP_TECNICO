@@ -33,7 +33,7 @@ def validarTecnicoSemana(db: Session, semana_label: str = None):
         registro = db.query(SemanaTecnico).filter(
             SemanaTecnico.semana == semana_label
         ).first()
-        print(registro, "1")
+
         if registro:
             return registro
 
@@ -46,23 +46,13 @@ def validarTecnicoSemana(db: Session, semana_label: str = None):
                 year_num=year, numero_semana=numSemana, semana=label_actual,
                 fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
             )
-            print(registro)
             db.add(registro)
             db.commit()
             db.refresh(registro)
             return registro
         except IntegrityError:
             db.rollback()
-            # Crear sesión limpia
-            from app.db import SessionLocal
-            nueva_sesion = SessionLocal()
-            try:
-                resultado = nueva_sesion.query(SemanaTecnico).filter(
-                    SemanaTecnico.semana == semana_label
-                ).first()
-                return resultado
-            finally:
-                nueva_sesion.close()
+            return db.query(SemanaTecnico).filter(SemanaTecnico.semana == label_actual).first()
 
     # 🔹 CASO 2: NO viene label
     registro = db.query(SemanaTecnico).filter(
