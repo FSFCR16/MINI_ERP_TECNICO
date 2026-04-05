@@ -153,7 +153,7 @@ export default function Page() {
                 setListRegistros(registrosCompletos);
                 setData(infoTecnico || []);
             } catch (err) {
-                console.error(err);
+                console.error("ERROR DETALLADO:", err.message, err)  // ← ver el error real
                 setError("No se pudo validar la semana o cargar la información.");
             } finally {
                 setLoading(false);
@@ -164,7 +164,7 @@ export default function Page() {
             cargarDatos();
         }
 
-    }, [nombre, semana]);
+    }, [nombre]);
     useEffect(() => {
         let base = {}
         if (!data || data.length === 0) {

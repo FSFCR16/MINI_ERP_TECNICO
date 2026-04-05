@@ -116,7 +116,12 @@ export function formatoFinal() {
   const hoy = new Date();
   const { isoYear, isoWeek } = getISOYearWeek(hoy);
 
-  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+  // Anclar al lunes de la semana ISO
+  const diaSemana = hoy.getDay() === 0 ? 7 : hoy.getDay(); // domingo=7
+  const lunes = new Date(hoy);
+  lunes.setDate(hoy.getDate() - (diaSemana - 1));
+
+  const mes = String(lunes.getMonth() + 1).padStart(2, "0");
 
   return `${isoYear}_${mes}_semana_${String(isoWeek).padStart(2, "0")}`;
 }

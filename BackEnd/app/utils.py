@@ -8,11 +8,15 @@ from openpyxl.utils import get_column_letter
 
 def semana_actual():
     hoy = date.today()
-    num_semana = hoy.isocalendar()[1]
-    año = hoy.year
-    mes= hoy.month
-    return f"{año}_{mes:02d}_semana_{num_semana}", año, num_semana
+    iso = hoy.isocalendar()
+    num_semana = iso[1]
+    año = iso[0]  # también usar el año ISO, no hoy.year
 
+    # Anclar al lunes de la semana ISO
+    lunes = hoy - timedelta(days=hoy.weekday())
+    mes = lunes.month
+
+    return f"{año}_{mes:02d}_semana_{num_semana}", año, num_semana
 def procesarDatosTecnico(datos: dict, nombre: str, trabajo:str):
     dicDataModificar={
         "NOMBRE":"",

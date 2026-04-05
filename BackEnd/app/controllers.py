@@ -13,6 +13,7 @@ import json
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from sqlalchemy.exc import IntegrityError
 
 def obtener_nombres(db: Session):
     resultados = db.query(Trabajo).all()
@@ -23,41 +24,47 @@ def obtener_nombres(db: Session):
 
 
 def validarTecnicoSemana(db: Session, semana_label: str = None):
-    # Siempre calculamos la semana actual
     label_actual, year, numSemana = semana_actual()
     fecha_inicio, fecha_fin = obtener_rango_semana()
-
+    print(f"semana_label: {semana_label}")
+    print(f"label_actual: {label_actual}")
     # 🔹 CASO 1: Viene label
     if semana_label:
         registro = db.query(SemanaTecnico).filter(
             SemanaTecnico.semana == semana_label
         ).first()
-
-        # Si existe → listo
+        print(registro, "1")
         if registro:
             return registro
 
-        # Si NO existe → validar que sea la actual
         if semana_label != label_actual:
-            raise HTTPException(
-                status_code=404,
-                detail="Semana no encontrada"
+            raise HTTPException(status_code=404, detail="Semana no encontrada")
+
+        # ↓ SOLO ESTO CAMBIA
+        try:
+            registro = SemanaTecnico(
+                year_num=year, numero_semana=numSemana, semana=label_actual,
+                fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
             )
+            print(registro)
+            db.add(registro)
+            db.commit()
+            db.refresh(registro)
+            return registro
+        except IntegrityError:
+            db.rollback()
+            # Crear sesión limpia
+            from app.db import SessionLocal
+            nueva_sesion = SessionLocal()
+            try:
+                resultado = nueva_sesion.query(SemanaTecnico).filter(
+                    SemanaTecnico.semana == semana_label
+                ).first()
+                return resultado
+            finally:
+                nueva_sesion.close()
 
-        # Es la actual → se puede crear
-        registro = SemanaTecnico(
-            year_num=year,
-            numero_semana=numSemana,
-            semana=label_actual,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin
-        )
-        db.add(registro)
-        db.commit()
-        db.refresh(registro)
-        return registro
-
-    # 🔹 CASO 2: NO viene label → flujo normal
+    # 🔹 CASO 2: NO viene label
     registro = db.query(SemanaTecnico).filter(
         SemanaTecnico.semana == label_actual
     ).first()
@@ -65,19 +72,19 @@ def validarTecnicoSemana(db: Session, semana_label: str = None):
     if registro:
         return registro
 
-    # Crear semana actual
-    registro = SemanaTecnico(
-        year_num=year,
-        numero_semana=numSemana,
-        semana=label_actual,
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin
-    )
-    db.add(registro)
-    db.commit()
-    db.refresh(registro)
-    return registro
-
+    # ↓ SOLO ESTO CAMBIA
+    try:
+        registro = SemanaTecnico(
+            year_num=year, numero_semana=numSemana, semana=label_actual,
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
+        )
+        db.add(registro)
+        db.commit()
+        db.refresh(registro)
+        return registro
+    except IntegrityError:
+        db.rollback()
+        return db.query(SemanaTecnico).filter(SemanaTecnico.semana == label_actual).first()
 
 def traerInformacionTecnico(db: Session, nombre: str):
 
