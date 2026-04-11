@@ -1,181 +1,58 @@
-const APIURL = process.env.NEXT_PUBLIC_API_URL
-console.log(APIURL)
-export async function obtenerTecnicos() {
-    const response = await fetch(`${APIURL}/api`)
-    if (!response.ok) {
-        throw new Error("Error en la petición")
-    }
+import { api } from "./api.js"
 
-    const data = await response.json()
-    return data
-}
+export const obtenerTecnicos = () =>
+    api.get("/api")
 
-export async function confirmarTecnico(nombre) {
-    const res = await fetch(`${APIURL}/api/infoTecnico/${nombre}`);
-    if (!res.ok) throw new Error("Error al traer la informacion del tecnico");
-    return await res.json();
-}
+export const confirmarTecnico = (nombre) =>
+    api.get(`/api/infoTecnico/${nombre}`)
 
-export async function ValidarSemanaTecnico(semana = null) {
-    const res = await fetch(`${APIURL}/api/validarSemana`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ semana }), // null si es flujo normal, label si viene del historial
-    });
-    if (!res.ok) throw new Error("Error al validar la semana del tecnico");
-    return await res.json();
-}
+export const ValidarSemanaTecnico = (semana = null) =>
+    api.post("/api/validarSemana", { semana })
 
-// export async function envioTablaDB(listaRegistros) {
-//     const res = await fetch(`${APIURL}/api/registrosDataBase`, {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(listaRegistros),
-//     });
-//     if (!res.ok) throw new Error("No fue posible enviar los registros a la DB");
-//     return await res.json();
-// }
+export const envioTablaDB = (listaRegistros, semana) =>
+    api.post("/api/registrosDataBase", { registros: listaRegistros, semana })
 
-export async function envioTablaDB(listaRegistros, semana) {
-    const res = await fetch(`${APIURL}/api/registrosDataBase`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registros: listaRegistros, semana }),
-    });
-    if (!res.ok) throw new Error("No fue posible enviar los registros a la DB");
-    return await res.json();
-}
+export const traerDatosCartas = () =>
+    api.get("/api/informacionGeneralRegistros")
 
-export async function traerDatosCartas() {
-    const res = await fetch(`${APIURL}/api/informacionGeneralRegistros`);
-    if (!res.ok) throw new Error("Error al traer la informacion para construir las cartas");
-    return await res.json();
-}
+export const getRegistrosPrevios = (nombre, semana) =>
+    api.get(`/api/obtenerRegistros/${nombre}/${semana}`)
 
-export async function getRegistrosPrevios(nombre, semana) {
-    const res = await fetch(`${APIURL}/api/obtenerRegistros/${nombre}/${semana}`);
-    if (!res.ok) throw new Error("Error, no fue posible obtener los registros para ", nombre);
-    return await res.json();
-}
+export const eliminarRegistrosDb = (registros) =>
+    api.delete("/api/eliminarRegistrosSelecionados", registros)
 
-export async function eleiminarRegistrosDb(registros) {
-  try {
-    const response = await fetch(`${APIURL}/api/eliminarRegistrosSelecionados`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(registros),
-    });
+export const exportarExcelDBPost = (registros, nombre, semana) =>
+    api.postRaw(`/api/exportToExcel/${nombre}/${semana}`, registros)
 
-    if (!response.ok) {
-      throw new Error("Error eliminando registros");
-    }
+export const obtenerHistorial = (nombreTecnico) =>
+    api.post("/api/historial-tecnico", { nombre: nombreTecnico })
 
-  } catch (error) {
-    console.error(error);
-  }
-}
+export const traerTecnicosSemana = (semana) =>
+    api.post("/api/historial-semana-tecnicos", { semana_id: semana })
 
-export async function exportarExcelDBPost(registros,nombre,semana) {
-  try {
-    const response = await fetch(`${APIURL}/api/exportToExcel/${nombre}/${semana}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(registros),
-    });
+export const traerSemanas = () =>
+    api.get("/api/historial-semanas")
 
-    if (!response.ok) {
-      throw new Error("No fue posible exportar el excel");
-    }
+export const eliminarSemana = (semana_id) =>
+    api.delete("/api/delete-historial-semana", { semana_id })
 
-    return response
+export const eliminarTecnicoSemana = (nombre, semana_id) =>
+    api.delete("/api/delete-historial-tecnico", { semana_id, nombre })
 
-  } catch (error) {
-    console.error(error);
-  }
-}
+export const parsearMensaje = (mensaje) =>
+    api.post("/api/parsear-mensaje", { mensaje })
 
+export const updateRegistro = (id, data) =>
+    api.put(`/api/update-registro/${id}`, data)
 
-export async function obtenerHistorial(nombreTecnico) {
-    const res = await fetch(`${APIURL}/api/historial-tecnico`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({"nombre":nombreTecnico}),
-    });
-    if (!res.ok) throw new Error("No fue posible obtener el historial del tecnico");
-    return await res.json();
-}
+export const obtenerTrabajos = () =>
+    api.get("/api/trabajos")
 
-export async function traerTecnicosSemana(semana) {
-    console.log(semana)
-    const res = await fetch(`${APIURL}/api/historial-semana-tecnicos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({"semana_id":semana}),
-    });
-    if (!res.ok) throw new Error("No fue posible obtener el historial del tecnico");
-    return await res.json();
-}
+export const crearTrabajo = (data) =>
+    api.post("/api/trabajos", data)
 
-export async function traerSemanas() {
-    const res = await fetch(`${APIURL}/api/historial-semanas`);
-    if (!res.ok) throw new Error("No fue posible obteniendo las semanas creadas");
-    return await res.json();
-}
+export const actualizarTrabajo = (id, data) =>
+    api.put(`/api/trabajos/${id}`, data)
 
-export async function eliminarSemana(semana_id) {
-  console.log(semana_id)
-  const res = await fetch(`${APIURL}/api/delete-historial-semana`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({"semana_id":semana_id}),
-  })
-
-  if (!res.ok) {
-    throw new Error("Error eliminando semana")
-  }
-
-  return res.json()
-}
-
-export async function eliminarTecnicoSemana(nombre, semana_id) {
-
-  const res = await fetch(`${APIURL}/api/delete-historial-tecnico`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      "semana_id":semana_id,
-      "nombre":nombre
-    })
-  })
-
-  if (!res.ok) {
-    throw new Error("Error eliminando registros")
-  }
-
-  return res.json()
-}
-
-export async function parsearMensaje(mensaje) {
-    console.log(mensaje)
-    const res = await fetch(`${APIURL}/api/parsear-mensaje`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mensaje })
-    })
-
-    if (!res.ok) {
-        throw new Error("Error procesando mensaje")
-    }
-
-    return res.json()
-}
+export const eliminarTrabajo = (id) =>
+    api.delete(`/api/trabajos/${id}`)

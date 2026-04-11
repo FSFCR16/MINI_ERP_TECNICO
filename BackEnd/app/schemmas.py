@@ -92,3 +92,29 @@ class SemanaBody(BaseModel):
 class EnvioRegistrosBody(BaseModel):
     semana: str
     registros: List[SemanaTecnicoSchemaFront]
+
+class UpdateRegistroSchema(BaseModel):
+    job: Optional[str] = None
+    job_name: Optional[str] = None
+    valor_efectivo: Optional[float] = None
+    valor_tarjeta: Optional[float] = None
+    valor_servicio: Optional[float] = None
+    tipo_pago: Optional[str] = None
+    partes_gil: Optional[float] = None
+    partes_tecnico: Optional[float] = None
+    tech: Optional[float] = None
+    porcentaje_tecnico: Optional[float] = None
+    porcentaje_cc: Optional[float] = None
+    subtotal: Optional[float] = None
+    total: Optional[float] = None
+
+class TrabajoCreateSchema(BaseModel):
+    nombre: str
+    job: str
+    porcentaje_tecnico: float
+    porcentaje_gil: float
+    adicional_dolar: float
+    minimo: float
+    porcentaje_cc: float
+    cargo_sabados: float
+    porcentaje_adicional_empresa: float

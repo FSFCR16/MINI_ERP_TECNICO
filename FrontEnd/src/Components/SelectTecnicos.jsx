@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react"
-import { obtenerTecnicos, confirmarTecnico } from "../Services/tencicosServices.js"
+import { obtenerTecnicos } from "../Services/tencicosServices.js"
 import { useRouter } from "next/navigation";
 import { formatoFinal } from "../Utils/api.js"
 import { LoadingOverlay } from "./loadingOverlay.jsx";
@@ -39,7 +39,6 @@ export default function SelectTecnicos() {
         cargarDatos()
     }, [])
 
-    // Scroll automático al item resaltado con teclado
     useEffect(() => {
         if (indexResaltado >= 0 && itemsRef.current[indexResaltado]) {
             itemsRef.current[indexResaltado].scrollIntoView({
@@ -117,7 +116,6 @@ export default function SelectTecnicos() {
 
             <div className="relative w-full">
 
-                {/* Card principal */}
                 <section className="
                     flex flex-col md:flex-row
                     items-stretch md:items-start
@@ -131,7 +129,6 @@ export default function SelectTecnicos() {
                     transition-all duration-300
                 ">
 
-                    {/* Input + error */}
                     <div className="flex-1 flex flex-col gap-1.5">
                         <div className="relative">
                             <input
@@ -159,7 +156,6 @@ export default function SelectTecnicos() {
                                     }
                                 `}
                             />
-                            {/* Indicador de válido */}
                             {tecnicoValido && (
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                     <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -169,7 +165,6 @@ export default function SelectTecnicos() {
                             )}
                         </div>
 
-                        {/* Error inline — reemplaza el alert() */}
                         {errorInput && (
                             <p className="text-[11px] text-rose-500 font-medium pl-1 flex items-center gap-1">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -180,7 +175,6 @@ export default function SelectTecnicos() {
                         )}
                     </div>
 
-                    {/* Botón primario — CONFIRMAR */}
                     <button
                         onClick={(e) => { e.preventDefault(); handleConfirmar() }}
                         className={`
@@ -201,29 +195,8 @@ export default function SelectTecnicos() {
                         Confirmar
                     </button>
 
-                    {/* Botón secundario — TABLAS */}
-                    <button
-                        onClick={() => router.push("/tablas")}
-                        className="
-                            w-full md:w-auto
-                            px-5 py-2.5
-                            rounded-xl
-                            bg-white/40 backdrop-blur-xl
-                            border border-white/40
-                            text-sm text-slate-600 font-medium
-                            shadow-sm
-                            hover:bg-white/60
-                            active:scale-95
-                            transition-all duration-200
-                            cursor-pointer
-                        "
-                    >
-                        Tablas
-                    </button>
-
                 </section>
 
-                {/* Lista desplegable */}
                 {mostrarList && (
                     <ul
                         ref={listRef}
@@ -237,7 +210,7 @@ export default function SelectTecnicos() {
                             shadow-2xl
                             overflow-auto
                             max-h-64
-                            z-20
+                            z-50
                         "
                     >
                         {filtrados.length === 0 ? (
@@ -275,7 +248,6 @@ export default function SelectTecnicos() {
                     </ul>
                 )}
 
-                {/* Click fuera para cerrar lista */}
                 {mostrarList && (
                     <div
                         className="fixed inset-0 z-10"

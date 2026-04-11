@@ -31,7 +31,7 @@ export const columnasBase = [
                 label: item.job
             }))
             : [],
-        editable: false        // no debe cambiarse una vez guardado
+        editable: true
     },
 
     {
@@ -109,15 +109,16 @@ export const columnasBase = [
         label: "PORCENTAJE TECNICO",
         component: "input",
         inputType: "number",
-        editable: true        // dato del técnico, no debe modificarse por registro
+        editable: false        // dato del técnico, no debe modificarse por registro
     },
 
     {
         key: "porcentaje_cc",
         label: "PORCENTAJE CC",
+        disableOnPago: ["CASH"],  // ← se oculta en CASH, visible en CC y MIXTO
         component: "input",
         inputType: "number",
-        editable: true       // igual, dato estructural del técnico
+        editable: true
     },
 
     {

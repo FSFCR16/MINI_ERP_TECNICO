@@ -6,8 +6,8 @@ export function MobileView({
   rowData,
   setRow,
   columnasTablaEditable = [],
+  columnasTablaGeneral = [],
   columnasDeshabilitdasGenerales = [],
-  columnas = [],
   data = [],
   moverseEntreCeldas,
   handleBtnAgregar,
@@ -15,16 +15,13 @@ export function MobileView({
   toggleSeleccion,
   elementosAEliminar = [],
   eliminarSeleccionados,
-  setIsOpen,
-  setModalTipo,
+  openModal,
   tieneError,
   baseRef,
-  procesarDatosTecnico,
   setNotas,
   isMobile,
-  fechaInicio,
-  fechaFin,
-  nombre
+  semanaFechas,
+  nombre,
 }) {
   const [expandido, setExpandido] = useState(null);
   const [fabAbierto, setFabAbierto] = useState(false);
@@ -34,9 +31,8 @@ export function MobileView({
   };
 
   const accionFab = (tipo) => {
-    setIsOpen(true);
-    setModalTipo(tipo);
-    setFabAbierto(false);
+    openModal(tipo)
+    setFabAbierto(false)
   };
 
   return (
@@ -44,13 +40,11 @@ export function MobileView({
 
       {/* ===================== FORMULARIO ===================== */}
       <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl shadow-xl overflow-hidden">
-
-        {/* Header del formulario */}
         <div className="px-4 pt-4 pb-3 border-b border-white/40 flex justify-between items-center">
           <div>
             <h2 className="font-semibold text-slate-800 text-sm">Nuevo registro</h2>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {fechaInicio} — {fechaFin} · {new Date().getFullYear()}
+              {semanaFechas.inicio} — {semanaFechas.fin} · {new Date().getFullYear()}
             </p>
           </div>
           <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-sky-100/80 text-sky-600 border border-sky-200/60">
@@ -58,7 +52,6 @@ export function MobileView({
           </span>
         </div>
 
-        {/* Campos */}
         <div className="p-4 grid grid-cols-2 gap-3">
           {columnasTablaEditable.map((col, index) => (
             <div
@@ -79,7 +72,6 @@ export function MobileView({
                   setCellRef={baseRef}
                   moverseEntreCeldas={moverseEntreCeldas}
                   columnasDeshabilitdasGenerales={columnasDeshabilitdasGenerales}
-                  procesarDatosTecnico={procesarDatosTecnico}
                   setNotas={setNotas}
                   isMobile={isMobile}
                 />
@@ -88,7 +80,6 @@ export function MobileView({
           ))}
         </div>
 
-        {/* Botón agregar */}
         <div className="px-4 pb-4">
           <button
             onClick={handleBtnAgregar}
@@ -98,7 +89,6 @@ export function MobileView({
           </button>
         </div>
       </div>
-
 
       {/* ===================== HEADER LISTA ===================== */}
       {listRegistro.length > 0 && (
@@ -117,7 +107,6 @@ export function MobileView({
         </div>
       )}
 
-
       {/* ===================== CARDS ACORDEÓN ===================== */}
       <div className="flex flex-col gap-3">
         {listRegistro.map((row, index) => {
@@ -128,22 +117,12 @@ export function MobileView({
           return (
             <div
               key={index}
-              className={`
-                bg-white/60 backdrop-blur-2xl
-                border rounded-3xl shadow-md
-                overflow-hidden
-                transition-all duration-300
-                ${seleccionado
-                  ? "border-indigo-300/60 bg-indigo-50/40"
-                  : "border-white/50"}
-              `}
+              className={`bg-white/60 backdrop-blur-2xl border rounded-3xl shadow-md overflow-hidden transition-all duration-300 ${seleccionado ? "border-indigo-300/60 bg-indigo-50/40" : "border-white/50"}`}
             >
-              {/* FILA RESUMEN — siempre visible, tap para expandir */}
               <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer active:bg-white/40 transition"
                 onClick={() => toggleExpandido(index)}
               >
-                {/* Checkbox */}
                 <div onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
@@ -152,13 +131,7 @@ export function MobileView({
                     className="w-4 h-4 accent-indigo-500 cursor-pointer rounded"
                   />
                 </div>
-
-                {/* Número */}
-                <span className="text-[11px] font-bold text-slate-400 min-w-[20px]">
-                  #{index + 1}
-                </span>
-
-                {/* Info rápida */}
+                <span className="text-[11px] font-bold text-slate-400 min-w-[20px]">#{index + 1}</span>
                 <div className="flex-1 flex flex-col min-w-0">
                   <span className="text-xs font-semibold text-slate-700 truncate">
                     {row.nombre ?? row.tipo_pago ?? "—"}
@@ -167,8 +140,6 @@ export function MobileView({
                     Servicio: ${row.valor_servicio ?? "—"}
                   </span>
                 </div>
-
-                {/* Total + chevron */}
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-bold ${totalNegativo ? "text-rose-500" : "text-indigo-600"}`}>
                     ${row.total ?? "—"}
@@ -182,16 +153,10 @@ export function MobileView({
                 </div>
               </div>
 
-              {/* DETALLE — se expande */}
-              <div
-                className={`
-                  transition-all duration-300 ease-in-out overflow-hidden
-                  ${abierto ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}
-                `}
-              >
+              <div className={`transition-all duration-300 ease-in-out overflow-hidden ${abierto ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}`}>
                 <div className="border-t border-white/40 mx-4" />
                 <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5">
-                  {columnas
+                  {columnasTablaGeneral
                     .filter(col => col.key !== "valor_servicio" && col.key !== "total")
                     .map(col => (
                       <div key={col.key} className="flex flex-col gap-0.5">
@@ -204,8 +169,6 @@ export function MobileView({
                       </div>
                     ))}
                 </div>
-
-                {/* Mini totales dentro del detalle */}
                 <div className="mx-4 mb-3 mt-1 flex gap-2">
                   <div className="flex-1 bg-indigo-50/60 border border-indigo-100/60 rounded-2xl p-2.5 text-center">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wide">Servicio</p>
@@ -219,105 +182,69 @@ export function MobileView({
                   </div>
                 </div>
               </div>
-
             </div>
           );
         })}
       </div>
 
-
       {/* ===================== BARRA INFERIOR FIJA ===================== */}
       <div className="fixed bottom-0 left-0 w-full bg-white/70 backdrop-blur-2xl border-t border-white/50 px-4 py-3 flex gap-2 z-40">
         <button
           className="flex-1 py-2 text-xs rounded-2xl bg-white/60 border border-white/50 text-green-600 font-semibold shadow-sm active:scale-95 active:bg-green-50 transition"
-          onClick={() => { setIsOpen(true); setModalTipo("EXPORTAR"); }}
+          onClick={() => openModal("EXPORTAR")}
         >
           Exportar
         </button>
         <button
           className="flex-1 py-2 text-xs rounded-2xl bg-white/60 backdrop-blur-xl border border-white/50 text-sky-600 font-semibold shadow-sm active:scale-95 transition"
-          onClick={() => { setIsOpen(true); setModalTipo("FINALIZAR"); }}  // ← esto faltaba
+          onClick={() => openModal("FINALIZAR")}
         >
           Finalizar
         </button>
       </div>
 
-
-      {/* ===================== FAB MENU (botones flotantes desplegables) ===================== */}
-
-      {/* Overlay para cerrar al tocar fuera */}
+      {/* ===================== FAB MENU ===================== */}
       {fabAbierto && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setFabAbierto(false)}
-        />
+        <div className="fixed inset-0 z-40" onClick={() => setFabAbierto(false)} />
       )}
 
       <div className="fixed bottom-20 right-4 flex flex-col items-end gap-2 z-50">
-
-        {/* Opciones — aparecen cuando fabAbierto = true */}
         <div className={`flex flex-col items-end gap-2 transition-all duration-200 ${fabAbierto ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}`}>
 
-          {/* HISTORIAL */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">
-              Historial
-            </span>
+            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">Historial</span>
             <button
               onClick={() => accionFab("HISTORIAL")}
               className="w-11 h-11 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 text-sky-600 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
-            >
-              📋
-            </button>
+            >📋</button>
           </div>
 
-          {/* MENSAJE */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">
-              Mensaje
-            </span>
+            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">Mensaje</span>
             <button
               onClick={() => accionFab("AUTO_MESSAGE")}
               className="w-11 h-11 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 text-indigo-600 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
-            >
-              💬
-            </button>
+            >💬</button>
           </div>
 
-          {/* NOTAS */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">
-              Notas
-            </span>
+            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">Notas</span>
             <button
               onClick={() => accionFab("NOTAS")}
               className="w-11 h-11 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 text-amber-500 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
-            >
-              📝
-            </button>
+            >📝</button>
           </div>
 
         </div>
 
-        {/* Botón principal FAB — abre/cierra el menú */}
         <button
           onClick={() => setFabAbierto(prev => !prev)}
-          className={`
-            w-[52px] h-[52px] rounded-full
-            bg-white/70 backdrop-blur-2xl
-            border border-white/60
-            text-slate-700 shadow-lg shadow-slate-200/60
-            flex items-center justify-center
-            transition-all duration-300
-            active:scale-95
-            ${fabAbierto ? "rotate-45" : "rotate-0"}
-          `}
+          className={`w-[52px] h-[52px] rounded-full bg-white/70 backdrop-blur-2xl border border-white/60 text-slate-700 shadow-lg shadow-slate-200/60 flex items-center justify-center transition-all duration-300 active:scale-95 ${fabAbierto ? "rotate-45" : "rotate-0"}`}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </button>
-
       </div>
 
     </div>

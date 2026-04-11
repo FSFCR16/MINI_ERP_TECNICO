@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import obtener_nombres, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
-from app.schemmas import TrabajoSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
+from app.controllers import eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
+from app.schemmas import TrabajoCreateSchema,TrabajoSchema,UpdateRegistroSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
 
@@ -100,3 +100,38 @@ async def eliminarSemanaRoute(data: SemanaRequest, db: Session = Depends(get_db)
 @router.delete("/delete-historial-tecnico")
 async def eliminarTecnicoSemanaRoute(data: infoSemana, db: Session = Depends(get_db)):
     return eliminarTecnicoSemana(data, db)
+
+
+@router.put("/update-registro/{id}")
+async def updateRegistroRoute(
+    id: int,
+    data: UpdateRegistroSchema,
+    db: Session = Depends(get_db)
+):
+    return updateRegistroController(id, data, db)
+
+@router.get("/trabajos")
+async def getTrabajos(db: Session = Depends(get_db)):
+    return obtenerTrabajos(db)
+
+@router.post("/trabajos")
+async def postTrabajo(
+    data: TrabajoCreateSchema,
+    db: Session = Depends(get_db)
+):
+    return crearTrabajo(data, db)
+
+@router.put("/trabajos/{id}")
+async def putTrabajo(
+    id: int,
+    data: TrabajoCreateSchema,
+    db: Session = Depends(get_db)
+):
+    return actualizarTrabajo(id, data, db)
+
+@router.delete("/trabajos/{id}")
+async def deleteTrabajo(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    return eliminarTrabajo(id, db)

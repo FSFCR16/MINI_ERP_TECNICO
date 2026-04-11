@@ -621,3 +621,76 @@ def parse_ticket(text: str) -> dict:
         return {}
  
  
+def updateRegistroController(id: int, data, db: Session):
+
+    registro = db.query(registrosSchemma).filter(
+        registrosSchemma.id == id
+    ).first()
+
+    if not registro:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+
+    try:
+        for key, value in data.dict(exclude_unset=True).items():
+            setattr(registro, key, value)
+
+        db.commit()
+        db.refresh(registro)
+
+        return {"message": "Registro actualizado correctamente"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error actualizando registro: {str(e)}"
+        )
+
+# 🔹 OBTENER TODOS
+def obtenerTrabajos(db: Session):
+    return db.query(Trabajo).all()
+
+# 🔹 CREAR
+def crearTrabajo(data, db: Session):
+    try:
+        datos = data.dict()
+        datos["nombre"] = datos["nombre"].strip().upper()
+        datos["porcentaje_gil"] = round(100 - datos["porcentaje_tecnico"], 2)
+        nuevo = Trabajo(**datos)
+        db.add(nuevo)
+        db.commit()
+        db.refresh(nuevo)
+        return nuevo
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, str(e))
+# 🔹 ACTUALIZAR
+def actualizarTrabajo(id: int, data, db: Session):
+    trabajo = db.query(Trabajo).filter(Trabajo.id == id).first()
+
+    if not trabajo:
+        raise HTTPException(404, "Trabajo no encontrado")
+
+    try:
+        for key, value in data.dict(exclude_unset=True).items():
+            setattr(trabajo, key, value)
+
+        db.commit()
+        db.refresh(trabajo)
+        return {"message": "Actualizado correctamente"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, str(e))
+
+# 🔹 ELIMINAR
+def eliminarTrabajo(id: int, db: Session):
+    trabajo = db.query(Trabajo).filter(Trabajo.id == id).first()
+
+    if not trabajo:
+        raise HTTPException(404, "Trabajo no encontrado")
+
+    db.delete(trabajo)
+    db.commit()
+
+    return {"message": "Eliminado correctamente"}

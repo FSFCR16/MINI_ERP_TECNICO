@@ -17,6 +17,7 @@ def semana_actual():
     mes = lunes.month
 
     return f"{año}_{mes:02d}_semana_{num_semana}", año, num_semana
+
 def procesarDatosTecnico(datos: dict, nombre: str, trabajo:str):
     dicDataModificar={
         "NOMBRE":"",

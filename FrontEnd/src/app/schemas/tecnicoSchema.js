@@ -60,3 +60,14 @@ export const tecnicoSchema = z.object({
   }
 
 })
+
+export const trabajoSchema = z.object({
+    nombre: z.string().min(1, "Requerido"),
+    job: z.string().min(1, "Requerido"),
+    porcentaje_tecnico: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    porcentaje_cc: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    minimo: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    adicional_dolar: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    cargo_sabados: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    porcentaje_adicional_empresa: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+})
