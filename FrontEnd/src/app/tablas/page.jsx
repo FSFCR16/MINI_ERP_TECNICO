@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, Fragment, useRef } from "react"
+import { useEffect, useState, Fragment } from "react"
 import { traerSemanas, traerTecnicosSemana, eliminarSemana, eliminarTecnicoSemana } from "../../Services/tencicosServices.js"
 import { LoadingOverlay } from "@/Components/loadingOverlay.jsx"
 import { useRouter } from "next/navigation"
 import { DialogPanel, Transition, TransitionChild, Dialog } from '@headlessui/react'
 import { ContentNoList } from '../tecnico/components_modal/content_noList.jsx'
 import { formatearNumero } from "@/Utils/api.js"
+import Link from "next/link"
 
 export default function Page() {
 
@@ -158,16 +159,6 @@ export default function Page() {
 
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
-                                {!vistaSemanas && (
-                                    <button
-                                        onClick={volverSemanas}
-                                        className="w-7 h-7 flex items-center justify-center rounded-full bg-white/60 border border-white/50 text-slate-500 hover:bg-white/80 active:scale-95 transition"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                                        </svg>
-                                    </button>
-                                )}
                                 <div>
                                     <h1 className="text-sm font-semibold text-slate-800">
                                         {vistaSemanas ? "Historial general" : `${semanaSeleccionada?.fecha_inicio} / ${semanaSeleccionada?.fecha_fin}`}
@@ -181,14 +172,38 @@ export default function Page() {
                                 </div>
                             </div>
 
-                            {!vistaSemanas && (
-                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/50 border border-white/50">
-                                    <span className="text-[11px] text-slate-400">Total semana</span>
-                                    <span className="text-sm font-bold text-indigo-600">
-                                        ${formatearNumero(totalSemana)}
-                                    </span>
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {!vistaSemanas && (
+                                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/50 border border-white/50">
+                                        <span className="text-[11px] text-slate-400">Total semana</span>
+                                        <span className="text-sm font-bold text-indigo-600">
+                                            ${formatearNumero(totalSemana)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {vistaSemanas ? (
+                                    <Link
+                                        href="/"
+                                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-slate-500 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                        </svg>
+                                        Inicio
+                                    </Link>
+                                ) : (
+                                    <button
+                                        onClick={volverSemanas}
+                                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-slate-500 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                        </svg>
+                                        Volver
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <input
@@ -215,8 +230,6 @@ export default function Page() {
                                     className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200"
                                 >
                                     <div className="flex items-center justify-between gap-4 flex-wrap">
-
-                                        {/* Info — solo texto, sin click */}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-slate-800">
                                                 {semana.fecha_inicio} / {semana.fecha_fin}
@@ -229,7 +242,6 @@ export default function Page() {
                                             )}
                                         </div>
 
-                                        {/* Acciones */}
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => cargarTecnicosSemana(semana)}
@@ -242,7 +254,6 @@ export default function Page() {
                                                 Ver
                                             </button>
 
-                                            {/* Eliminar — solo ícono */}
                                             <button
                                                 onClick={() => {
                                                     setModalAction(() => () => handleEliminarSemana(semana.id))
@@ -256,7 +267,6 @@ export default function Page() {
                                                 </svg>
                                             </button>
                                         </div>
-
                                     </div>
                                 </div>
                             ))}
@@ -272,8 +282,6 @@ export default function Page() {
                                     className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200"
                                 >
                                     <div className="flex items-center justify-between gap-4 flex-wrap">
-
-                                        {/* Info — solo texto, sin click */}
                                         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-slate-800 truncate">
                                                 {cart.nombre}
@@ -288,7 +296,6 @@ export default function Page() {
                                             </div>
                                         </div>
 
-                                        {/* Acciones */}
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => router.push(`/tecnico/${cart.nombre}/${cart.semana}`)}
@@ -301,7 +308,6 @@ export default function Page() {
                                                 Ver
                                             </button>
 
-                                            {/* Eliminar — solo ícono */}
                                             <button
                                                 onClick={() => {
                                                     setModalAction(() => () => handleEliminarTecnico(cart.nombre))
@@ -315,7 +321,6 @@ export default function Page() {
                                                 </svg>
                                             </button>
                                         </div>
-
                                     </div>
                                 </div>
                             ))}

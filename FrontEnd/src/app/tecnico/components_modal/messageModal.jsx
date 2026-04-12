@@ -39,7 +39,7 @@ Notes:
     }
 
     async function confirmar() {
-        setIsOpen(false)
+        setIsOpen(false)  // ← quita esta línea del inicio
         if (!mensaje.trim()) {
             setError("Debe ingresar un mensaje")
             return
@@ -47,23 +47,22 @@ Notes:
         try {
             setLoading(true)
             const result = await parsearMensaje(mensaje)
-            console.log(result)
             if (result.faltantes && result.faltantes.length > 0) {
                 setResultadoParcial(result)
                 setCamposFaltantes(result.faltantes)
-                setModalTipo("CAMPOS_FALTANTES")
-                setIsOpen(true)
+                setModalTipo("CAMPOS_FALTANTES") // ← esto solo cambia el tipo, el modal sigue abierto
             } else {
+                setIsOpen(false) // ← cierra solo si no hay faltantes
                 procesarMensaje(result)
             }
         } catch (err) {
             console.error(err)
+            setIsOpen(false)
             setError("Error procesando mensaje")
         } finally {
             setLoading(false)
         }
     }
-
     return (
         <>
             <DialogTitle className="text-base font-semibold text-slate-800 mb-4">

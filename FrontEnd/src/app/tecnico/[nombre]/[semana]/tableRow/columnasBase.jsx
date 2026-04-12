@@ -31,7 +31,7 @@ export const columnasBase = [
                 label: item.job
             }))
             : [],
-        editable: true
+        editable: false
     },
 
     {
@@ -109,7 +109,7 @@ export const columnasBase = [
         label: "PORCENTAJE TECNICO",
         component: "input",
         inputType: "number",
-        editable: false        // dato del técnico, no debe modificarse por registro
+        editable: true        // dato del técnico, no debe modificarse por registro
     },
 
     {

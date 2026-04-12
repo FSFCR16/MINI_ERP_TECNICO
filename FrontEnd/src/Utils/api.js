@@ -270,3 +270,11 @@ export function formatearFechaSemana(fecha) {
   const fechaFormato = `${fecha.split("-")[2]} -${meses[Number(fecha.split("-")[1])]}`
   return fechaFormato
 }
+
+export function mapearErroresZod(error) {
+    return error.issues.map(issue => ({
+        label: issue.path[0].replaceAll("_", " ").toUpperCase(),
+        message: issue.message,
+        key: issue.path[0],
+    }))
+}

@@ -1,6 +1,7 @@
 import { TablaRegistros } from './Desktop/TablaRegistros.jsx'
 import { TablaEditable } from './Desktop/TablaEditable.jsx'
 import { TablaAcciones } from './Desktop/TablaAcciones.jsx'
+import Link from "next/link"
 
 export function DesktopView({ state, handlers, nav, modal }) {
 
@@ -33,7 +34,8 @@ export function DesktopView({ state, handlers, nav, modal }) {
         toggleSeleccionTodos,
         setRow,
         setNotas,
-        guardarCambios,         // ✅ nuevo
+        guardarCambios,
+        revertirCambios,      // ✅ nuevo
     } = handlers
 
     // 🔹 NAV
@@ -68,15 +70,27 @@ export function DesktopView({ state, handlers, nav, modal }) {
                         </span>
                     </div>
 
-                    <button
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-amber-600 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200 cursor-pointer"
-                        onClick={() => openModal("HISTORIAL")}
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Historial
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/"
+                            className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-slate-500 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200 cursor-pointer"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Inicio
+                        </Link>
+
+                        <button
+                            className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-amber-600 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200 cursor-pointer"
+                            onClick={() => openModal("HISTORIAL")}
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Historial
+                        </button>
+                    </div>
                 </div>
 
                 {/* TABLA REGISTROS */}
@@ -136,7 +150,7 @@ export function DesktopView({ state, handlers, nav, modal }) {
                     />
 
                     <TablaAcciones
-                        handlers={{ handleBtnAgregar, clickExportExcel, guardarCambios }}
+                        handlers={{ handleBtnAgregar, clickExportExcel, guardarCambios, revertirCambios }}
                         modal={{ openModal }}
                         haycambiosPendientes={haycambiosPendientes}
                         guardando={guardando}

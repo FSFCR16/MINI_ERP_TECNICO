@@ -1,6 +1,9 @@
-import { useEffect, useRef } from "react"
+"use client"
+import { useState } from "react"
 import { TablaTrabajos } from "./table/TablaTrabajos"
 import { CellRenderer } from '../tecnico/[nombre]/[semana]/tableRow/renderCell.jsx'
+import { BuscadorRegistros } from '../tecnico/[nombre]/[semana]/components/BuscadorRegistros.jsx'
+import Link from "next/link"
 
 export function TrabajosView({ state, handlers, nav }) {
 
@@ -28,6 +31,7 @@ export function TrabajosView({ state, handlers, nav }) {
         setActiveCell,
         setActiveHeader,
         setCeldaEditando,
+        revertirCambios,
     } = handlers
 
     const {
@@ -39,20 +43,8 @@ export function TrabajosView({ state, handlers, nav }) {
         baseRef,
     } = nav
 
-    // ✅ Ctrl+S para guardar
-    const guardarCambiosRef = useRef(guardarCambios)
-    useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
-
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                e.preventDefault()
-                guardarCambiosRef.current()
-            }
-        }
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [])
+    const [registrosFiltrados, setRegistrosFiltrados] = useState(null)
+    const listaVisible = registrosFiltrados ?? trabajos
 
     const tieneError = () => false
 
@@ -72,12 +64,20 @@ export function TrabajosView({ state, handlers, nav }) {
                             </span>
                         )}
                     </div>
+                    <Link
+                        href="/"
+                        className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-white/50 backdrop-blur-xl border border-white/50 text-slate-500 font-medium shadow-sm hover:bg-white/70 active:scale-95 transition-all duration-200 cursor-pointer"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Inicio
+                    </Link>
                 </div>
-
                 {/* TABLA GENERAL */}
                 <TablaTrabajos
                     state={{
-                        trabajos,
+                        trabajos: listaVisible,
                         elementosAEliminar,
                         columnasTablaGeneral,
                         activeCell,
@@ -159,25 +159,47 @@ export function TrabajosView({ state, handlers, nav }) {
                     {/* BOTONES */}
                     <div className="w-full flex justify-end gap-2 pt-1">
 
-                        {/* Guardar cambios */}
-                        <button
-                            onClick={guardarCambios}
-                            disabled={!haycambiosPendientes}
-                            className={`flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold transition-all duration-200 active:scale-95
-                                ${haycambiosPendientes
-                                    ? "bg-green-500 text-white shadow-lg shadow-green-300/50 hover:bg-green-600 cursor-pointer"
-                                    : "bg-white/60 border border-white/50 text-slate-300 cursor-not-allowed shadow-none"
-                                }`}
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                            {haycambiosPendientes ? "Guardar cambios" : "Sin cambios"}
-                        </button>
+                        {haycambiosPendientes && (
+                            <>
+                                <button
+                                    onClick={() => revertirCambios(false)}
+                                    disabled={guardando}
+                                    style={{ opacity: guardando ? 0.4 : 1, cursor: guardando ? "not-allowed" : "pointer" }}
+                                    className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold bg-white/60 backdrop-blur-xl border border-white/50 text-rose-500 shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                    Revertir
+                                </button>
 
-                        {/* Agregar técnico */}
+                                <button
+                                    onClick={guardarCambios}
+                                    disabled={guardando}
+                                    style={{ backgroundColor: guardando ? "#86efac" : "#22c55e", color: "white" }}
+                                    className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold shadow-md hover:opacity-90 active:scale-95 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                    {guardando ? (
+                                        <>
+                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                            Guardando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Guardar cambios
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        )}
+
                         <button
-                            className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl bg-sky-500 text-white font-semibold shadow-lg shadow-sky-300/50 hover:bg-sky-600 active:scale-95 transition-all duration-200 cursor-pointer"
+                            className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold bg-white/60 backdrop-blur-xl border border-white/50 text-sky-600 hover:bg-white/80 active:scale-95 transition-all duration-200 cursor-pointer"
                             onClick={handleBtnAgregar}
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

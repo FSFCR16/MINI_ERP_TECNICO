@@ -1,6 +1,6 @@
 export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando }) {
 
-    const { handleBtnAgregar, clickExportExcel, guardarCambios } = handlers
+    const { handleBtnAgregar, clickExportExcel, guardarCambios, revertirCambios } = handlers
     const { openModal } = modal
 
     return (
@@ -25,28 +25,42 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
             <div className="flex flex-wrap items-center gap-2">
 
                 {haycambiosPendientes && (
-                    <button
-                        onClick={guardarCambios}
-                        disabled={guardando}
-                        style={{ backgroundColor: guardando ? "#86efac" : "#22c55e", color: "white" }}
-                        className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold shadow-md hover:opacity-90 active:scale-95 transition-all duration-200 cursor-pointer"
-                    >
-                        {guardando ? (
-                            <>
-                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Guardando...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                Guardar cambios
-                            </>
-                        )}
-                    </button>
+                    <>
+                        <button
+                            onClick={() => revertirCambios(false)}
+                            disabled={guardando}
+                            style={{ opacity: guardando ? 0.4 : 1, cursor: guardando ? "not-allowed" : "pointer" }}
+                            className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold bg-white/60 backdrop-blur-xl border border-white/50 text-rose-500 shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            Revertir
+                        </button>
+
+                        <button
+                            onClick={guardarCambios}
+                            disabled={guardando}
+                            style={{ backgroundColor: guardando ? "#86efac" : "#22c55e", color: "white" }}
+                            className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold shadow-md hover:opacity-90 active:scale-95 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed"
+                        >
+                            {guardando ? (
+                                <>
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Guardar cambios
+                                </>
+                            )}
+                        </button>
+                    </>
                 )}
 
                 <button
@@ -68,9 +82,7 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
                     </svg>
                     Agregar
                 </button>
-
             </div>
-
         </div>
     )
 }

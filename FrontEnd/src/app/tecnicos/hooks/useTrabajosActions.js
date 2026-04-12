@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { obtenerTrabajos, crearTrabajo, actualizarTrabajo, eliminarTrabajo } from "../../../Services/tencicosServices"
 import { columnasTrabajos } from "../table/columnasTrabajos.js"
 import { trabajoSchema } from "@/app/schemas/tecnicoSchema"
+import { mapearErroresZod } from "../../../Utils/api.js"
+import { useRevertible } from '../../../app/hooks/useRevertible'
 
 const rowVacio = {
     nombre: "",
@@ -21,16 +23,16 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
     const [loading, setLoading] = useState(true)
     const [elementosAEliminar, setElementosAEliminar] = useState([])
     const [guardando, setGuardando] = useState(false)
-    const [haycambiosPendientes, setHayCambiosPendientes] = useState(false)
 
-    // ✅ Ref para que guardarCambios siempre vea trabajos fresco
     const trabajosRef = useRef(trabajos)
     useEffect(() => { trabajosRef.current = trabajos }, [trabajos])
 
     const openModalRef = useRef(openModal)
     useEffect(() => { openModalRef.current = openModal }, [openModal])
 
-    // ── Cargar trabajos ───────────────────────────────────────
+    const { haycambiosPendientes, marcarCambio, revertirCambios, confirmarGuardado, getIdsModificados } =
+        useRevertible(trabajosRef, setTrabajos)
+
     useEffect(() => {
         const cargar = async () => {
             setLoading(true)
@@ -46,7 +48,6 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
         cargar()
     }, [])
 
-    // ── Columnas ──────────────────────────────────────────────
     const buildColumns = (tipoTabla) =>
         columnasTrabajos
             .map(col => ({
@@ -59,7 +60,6 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
     const columnasTablaGeneral  = useMemo(() => buildColumns("general"),  [])
     const columnasTablaEditable = useMemo(() => buildColumns("editable"), [])
 
-    // ── Selección ─────────────────────────────────────────────
     const toggleSeleccion = (item) =>
         setElementosAEliminar(prev =>
             prev.includes(item) ? prev.filter(e => e !== item) : [...prev, item]
@@ -70,15 +70,6 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
             elementosAEliminar.length === trabajos.length ? [] : [...trabajos]
         )
 
-    // ── Validación ────────────────────────────────────────────
-    const mapearErroresZod = (error) =>
-        error.issues.map(issue => ({
-            label: issue.path[0].replaceAll("_", " ").toUpperCase(),
-            message: issue.message,
-            key: issue.path[0],
-        }))
-
-    // ── Agregar ───────────────────────────────────────────────
     const handleBtnAgregar = async () => {
         const resultado = trabajoSchema.safeParse(rowData)
         if (!resultado.success) {
@@ -98,7 +89,6 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
 
         try {
             const creado = await crearTrabajo(payload)
-            // ✅ creado ya trae el id real del backend
             setTrabajos(prev =>
                 prev.map(t => t.id === nuevoLocal.id ? creado : t)
             )
@@ -108,7 +98,6 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
         }
     }
 
-    // ── Eliminar ──────────────────────────────────────────────
     const eliminarSeleccionados = async () => {
         const idsReales = elementosAEliminar.filter(t => !String(t.id).startsWith("temp-"))
         setTrabajos(prev => prev.filter(t => !elementosAEliminar.includes(t)))
@@ -120,32 +109,35 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
         }
     }
 
-    // ── Editar celda — solo estado local, sin llamada a DB ────
     const actualizarCeldaTrabajo = (rowIndex, colKey, nuevoValor) => {
+        console.log("✏️ actualizarCeldaTrabajo llamado, id:", trabajosRef.current[rowIndex]?.id)
+        marcarCambio(trabajosRef.current[rowIndex]?.id)
         setTrabajos(prev => {
             const copia = [...prev]
-            copia[rowIndex] = { ...copia[rowIndex], [colKey]: nuevoValor }
+            const fila = { ...copia[rowIndex], [colKey]: nuevoValor }
+            copia[rowIndex] = fila
             return copia
         })
-        setHayCambiosPendientes(true)
     }
-
-    // ── Guardar manual — Ctrl+S o botón ──────────────────────
     const guardarCambios = useCallback(async () => {
-        const reales = trabajosRef.current.filter(t => !String(t.id).startsWith("temp-"))
+        if (!haycambiosPendientes) return
+        const ids = getIdsModificados()
+        const reales = trabajosRef.current.filter(t =>
+            !String(t.id).startsWith("temp-") && ids.has(t.id)
+        )
         if (!reales.length) return
 
         setGuardando(true)
         try {
             await Promise.all(reales.map(t => actualizarTrabajo(t.id, t)))
-            setHayCambiosPendientes(false)
+            confirmarGuardado()
         } catch (err) {
             console.error("Error guardando:", err)
             openModalRef.current("ERROR_GUARDADO")
         } finally {
             setGuardando(false)
         }
-    }, [])
+    }, [confirmarGuardado, haycambiosPendientes, getIdsModificados])
 
     return {
         trabajos,
@@ -161,6 +153,7 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
         eliminarSeleccionados,
         actualizarCeldaTrabajo,
         guardarCambios,
+        revertirCambios,
         haycambiosPendientes,
         guardando,
     }

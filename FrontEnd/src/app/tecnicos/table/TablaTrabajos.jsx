@@ -1,3 +1,6 @@
+import { useState } from "react"
+import { BuscadorRegistros } from '../../tecnico/[nombre]/[semana]/components/BuscadorRegistros.jsx'
+
 export function TablaTrabajos({ state, handlers, nav }) {
 
     const {
@@ -27,18 +30,38 @@ export function TablaTrabajos({ state, handlers, nav }) {
         moverseEnTablaGeneral,
     } = nav
 
+    const [registrosFiltrados, setRegistrosFiltrados] = useState(null)
+    const listaVisible = registrosFiltrados ?? trabajos
+
     return (
         <section className="w-full flex-1 min-h-0 overflow-hidden rounded-2xl shadow-xl bg-white/70 backdrop-blur-xl border border-white/40 flex flex-col">
 
             {/* HEADER DE TABLA */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/40">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    Registros
-                </span>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/40 gap-3">
+                <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                        Registros
+                    </span>
+                    {trabajos.length > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100/80 text-indigo-600 border border-indigo-200/60">
+                            {listaVisible.length}{listaVisible.length !== trabajos.length ? `/${trabajos.length}` : ""}
+                        </span>
+                    )}
+                </div>
+
+                {/* BUSCADOR */}
+                {trabajos.length > 0 && (
+                    <div className="flex-1 max-w-xs">
+                        <BuscadorRegistros
+                            registros={trabajos}
+                            onFiltrar={setRegistrosFiltrados}
+                        />
+                    </div>
+                )}
 
                 {elementosAEliminar.length > 0 && (
                     <button
-                        className="flex items-center gap-1.5 px-3 py-1 text-xs rounded-xl bg-rose-50/80 border border-rose-200/60 text-rose-500 font-medium hover:bg-rose-100/80 active:scale-95 transition-all duration-200 cursor-pointer"
+                        className="flex items-center gap-1.5 px-3 py-1 text-xs rounded-xl bg-rose-50/80 border border-rose-200/60 text-rose-500 font-medium hover:bg-rose-100/80 active:scale-95 transition-all duration-200 cursor-pointer shrink-0"
                         onClick={eliminarSeleccionados}
                     >
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -85,98 +108,102 @@ export function TablaTrabajos({ state, handlers, nav }) {
                     </thead>
 
                     <tbody>
-                        {trabajos.map((row, indexrow) => (
-                            <tr
-                                key={row.id ?? indexrow}
-                                className={`transition duration-200 hover:bg-white/40 ${elementosAEliminar.includes(row) ? "bg-blue-50/60" : ""}`}
-                            >
-                                {columnasTablaGeneral.map((col, indexCol) => {
-                                    const cellKey = `${indexrow}-${indexCol}`
-                                    const value = row[col.key]
-                                    const esEditable = col.editable !== false
+                        {listaVisible.map((row, indexrow) => {
+                            const indexReal = trabajos.indexOf(row)
 
-                                    return (
-                                        <td
-                                            key={indexCol}
-                                            className={`px-1 py-1 border-b border-white/30 ${indexCol === 0 ? "text-center w-[32px]" : "text-right"}`}
-                                        >
-                                            {indexCol === 0 ? (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={elementosAEliminar.includes(row)}
-                                                    onChange={() => toggleSeleccion(row)}
-                                                    className="w-3.5 h-3.5 cursor-pointer"
-                                                />
-                                            ) : celdaEditando === cellKey ? (
-                                                <input
-                                                    autoFocus
-                                                    type={typeof value === "number" ? "number" : "text"}
-                                                    defaultValue={value}
-                                                    className="w-full text-[12px] bg-white/80 border border-indigo-300/60 rounded px-1 outline-none"
-                                                    onBlur={(e) => {
-                                                        if (guardandoRef.current) { guardandoRef.current = false; return }
-                                                        const val = typeof value === "number" ? Number(e.target.value) : e.target.value
-                                                        actualizarCeldaTrabajo(indexrow, col.key, val)
-                                                        setCeldaEditando(null)
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Escape") {
-                                                            guardandoRef.current = true
-                                                            e.target.blur()
-                                                            setCeldaEditando(null)
-                                                            return
-                                                        }
-                                                        if (e.key === "Enter") {
-                                                            e.preventDefault()
-                                                            guardandoRef.current = true
+                            return (
+                                <tr
+                                    key={row.id ?? indexrow}
+                                    className={`transition duration-200 hover:bg-white/40 ${elementosAEliminar.includes(row) ? "bg-blue-50/60" : ""}`}
+                                >
+                                    {columnasTablaGeneral.map((col, indexCol) => {
+                                        const cellKey = `${indexrow}-${indexCol}`
+                                        const value = row[col.key]
+                                        const esEditable = col.editable !== false
+
+                                        return (
+                                            <td
+                                                key={indexCol}
+                                                className={`px-1 py-1 border-b border-white/30 ${indexCol === 0 ? "text-center w-[32px]" : "text-right"}`}
+                                            >
+                                                {indexCol === 0 ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={elementosAEliminar.includes(row)}
+                                                        onChange={() => toggleSeleccion(row)}
+                                                        className="w-3.5 h-3.5 cursor-pointer"
+                                                    />
+                                                ) : celdaEditando === cellKey ? (
+                                                    <input
+                                                        autoFocus
+                                                        type={typeof value === "number" ? "number" : "text"}
+                                                        defaultValue={value}
+                                                        className="w-full text-[12px] bg-white/80 border border-indigo-300/60 rounded px-1 outline-none"
+                                                        onBlur={(e) => {
+                                                            if (guardandoRef.current) { guardandoRef.current = false; return }
                                                             const val = typeof value === "number" ? Number(e.target.value) : e.target.value
-                                                            actualizarCeldaTrabajo(indexrow, col.key, val)
+                                                            actualizarCeldaTrabajo(indexReal, col.key, val)
                                                             setCeldaEditando(null)
-                                                            setTimeout(() => celdasTablaRef.current[`${indexrow + 1}-${indexCol}`]?.focus(), 0)
-                                                            return
-                                                        }
-                                                        if (e.key === "Tab") {
-                                                            e.preventDefault()
-                                                            guardandoRef.current = true
-                                                            const val = typeof value === "number" ? Number(e.target.value) : e.target.value
-                                                            actualizarCeldaTrabajo(indexrow, col.key, val)
-                                                            setCeldaEditando(null)
-                                                            setTimeout(() => celdasTablaRef.current[`${indexrow}-${indexCol + 1}`]?.focus(), 0)
-                                                            return
-                                                        }
-                                                    }}
-                                                    ref={el => { celdasTablaRef.current[cellKey] = el }}
-                                                />
-                                            ) : (
-                                                <div
-                                                    tabIndex={0}
-                                                    onDoubleClick={() => { if (esEditable) setCeldaEditando(cellKey) }}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter") {
-                                                            e.preventDefault()
-                                                            if (esEditable) { setCeldaEditando(cellKey); return }
-                                                        }
-                                                        moverseEnTablaGeneral(e, indexrow, indexCol)
-                                                    }}
-                                                    ref={el => { celdasTablaRef.current[cellKey] = el }}
-                                                    onClick={() => setActiveCell(activeCell === cellKey ? null : cellKey)}
-                                                    className={`flex justify-start overflow-hidden whitespace-nowrap text-ellipsis text-[12px] ${esEditable ? "cursor-pointer" : "cursor-default"} text-slate-700`}
-                                                >
-                                                    <div className="flex items-center gap-1">
-                                                        <span className={`inline-block ${activeCell === cellKey ? "animate-scrollText" : "truncate"}`}>
-                                                            {value ?? "—"}
-                                                        </span>
-                                                        {guardando?.[indexrow] && (
-                                                            <span className="text-[9px] text-blue-500 animate-pulse">...</span>
-                                                        )}
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Escape") {
+                                                                guardandoRef.current = true
+                                                                e.target.blur()
+                                                                setCeldaEditando(null)
+                                                                return
+                                                            }
+                                                            if (e.key === "Enter") {
+                                                                e.preventDefault()
+                                                                guardandoRef.current = true
+                                                                const val = typeof value === "number" ? Number(e.target.value) : e.target.value
+                                                                actualizarCeldaTrabajo(indexReal, col.key, val)
+                                                                setCeldaEditando(null)
+                                                                setTimeout(() => celdasTablaRef.current[`${indexrow + 1}-${indexCol}`]?.focus(), 0)
+                                                                return
+                                                            }
+                                                            if (e.key === "Tab") {
+                                                                e.preventDefault()
+                                                                guardandoRef.current = true
+                                                                const val = typeof value === "number" ? Number(e.target.value) : e.target.value
+                                                                actualizarCeldaTrabajo(indexReal, col.key, val)
+                                                                setCeldaEditando(null)
+                                                                setTimeout(() => celdasTablaRef.current[`${indexrow}-${indexCol + 1}`]?.focus(), 0)
+                                                                return
+                                                            }
+                                                        }}
+                                                        ref={el => { celdasTablaRef.current[cellKey] = el }}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        tabIndex={0}
+                                                        onDoubleClick={() => { if (esEditable) setCeldaEditando(cellKey) }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                                e.preventDefault()
+                                                                if (esEditable) { setCeldaEditando(cellKey); return }
+                                                            }
+                                                            moverseEnTablaGeneral(e, indexrow, indexCol)
+                                                        }}
+                                                        ref={el => { celdasTablaRef.current[cellKey] = el }}
+                                                        onClick={() => setActiveCell(activeCell === cellKey ? null : cellKey)}
+                                                        className={`flex justify-start overflow-hidden whitespace-nowrap text-ellipsis text-[12px] ${esEditable ? "cursor-pointer" : "cursor-default"} text-slate-700`}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            <span className={`inline-block ${activeCell === cellKey ? "animate-scrollText" : "truncate"}`}>
+                                                                {value ?? "—"}
+                                                            </span>
+                                                            {guardando?.[indexrow] && (
+                                                                <span className="text-[9px] text-blue-500 animate-pulse">...</span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </td>
-                                    )
-                                })}
-                            </tr>
-                        ))}
+                                                )}
+                                            </td>
+                                        )
+                                    })}
+                                </tr>
+                            )
+                        })}
                     </tbody>
 
                 </table>

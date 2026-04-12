@@ -40,9 +40,20 @@ export function useTecnicoData(nombre, semana) {
                         ? [infoTecnico]
                         : []
 
-                const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
-                    procesarDatosTecnico(tecnicoArray, dato)
-                )
+                const dataPreviaProcesada = registrosPrevios.flatMap(dato => {
+                    const tecnicoMatch = tecnicoArray.find(
+                        t => t.job.replace(/\s+/g, "") === dato.job.replace(/\s+/g, "")
+                    )
+                    if (!tecnicoMatch) return []
+                    return procesarDatosTecnico([tecnicoMatch], dato)
+                })
+                
+                console.log("dataPreviaProcesada completa:", dataPreviaProcesada.map(r => ({
+                    id: r.id,
+                    id_registro: r.id_registro,
+                    job_name: r.job_name,
+                    total: r.total
+                })))
 
                 setData(tecnicoArray)
                 setListRegistros(dataPreviaProcesada)

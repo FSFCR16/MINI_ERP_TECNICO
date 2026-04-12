@@ -94,7 +94,6 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
     if not registros:
         raise HTTPException(status_code=400, detail="No se enviaron registros")
 
-    # ← usa la semana que viene del frontend, no semana_actual()
     semanaDB = db.query(SemanaTecnico).filter(
         SemanaTecnico.semana == semana
     ).first()
@@ -103,111 +102,36 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
         raise HTTPException(status_code=404, detail="La semana solicitada no existe")
 
     try:
-        registros_db = [{
-            "tecnico_id": r.id_tecnico,
-            "semana_id": semanaDB.id,
-            "nombre": r.nombre,
-            "job": r.job,
-            "job_name": r.job_name,
-            "valor_efectivo": r.valor_efectivo,
-            "valor_tarjeta": r.valor_tarjeta,
-            "valor_servicio": r.valor_servicio,
-            "tipo_pago": r.tipo_pago,
-            "partes_gil": r.partes_gil,
-            "minimo": r.minimo,
-            "partes_tecnico": r.partes_tecnico,
-            "tech": r.tech,
-            "porcentaje_tecnico": r.porcentaje_tecnico,
-            "porcentaje_cc": r.porcentaje_cc,
-            "subtotal": r.subtotal,
-            "total": r.total,
-        } for r in registros]
+        registros_creados = []
+        for r in registros:
+            nuevo = registrosSchemma(
+                tecnico_id=r.id_tecnico,
+                semana_id=semanaDB.id,
+                nombre=r.nombre,
+                job=r.job,
+                job_name=r.job_name,
+                valor_efectivo=r.valor_efectivo,
+                valor_tarjeta=r.valor_tarjeta,
+                valor_servicio=r.valor_servicio,
+                tipo_pago=r.tipo_pago,
+                partes_gil=r.partes_gil,
+                partes_tecnico=r.partes_tecnico,
+                tech=r.tech,
+                porcentaje_tecnico=r.porcentaje_tecnico,
+                porcentaje_cc=r.porcentaje_cc,
+                subtotal=r.subtotal,
+                total=r.total,
+            )
+            db.add(nuevo)
+            db.flush()
+            registros_creados.append({"id": nuevo.id, "job": nuevo.job})
 
-        db.bulk_insert_mappings(registrosSchemma, registros_db)
         db.commit()
-        return {"message": "Registros agregados correctamente", "registros": registros_db}
+        return {"message": "Registros agregados correctamente", "registros": registros_creados}
 
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al insertar registros: {str(e)}")
-# def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session):
-#     print(registros)
-#     if not registros:
-#         raise HTTPException(
-#             status_code=400,
-#             detail="No se enviaron registros"
-#         )
-
-#     label, year, numSemana = semana_actual()
-
-#     semanaDB = db.query(SemanaTecnico).filter(
-#         SemanaTecnico.semana == label
-#     ).first()
-
-#     if not semanaDB:
-#         raise HTTPException(
-#             status_code=404,
-#             detail="La semana actual no existe en la base de datos"
-#         )
-
-#     try:
-
-#         registros_db = [{
-#             "tecnico_id": r.id_tecnico,
-#             "semana_id": semanaDB.id,
-#             "nombre": r.nombre,
-#             "job": r.job,
-#             "job_name": r.job_name,
-#             "valor_efectivo": r.valor_efectivo,
-#             "valor_tarjeta": r.valor_tarjeta,
-#             "valor_servicio": r.valor_servicio,
-#             "tipo_pago": r.tipo_pago,
-#             "partes_gil": r.partes_gil,
-#             "minimo": r.minimo,
-#             "partes_tecnico": r.partes_tecnico,
-#             "tech": r.tech,
-#             "porcentaje_tecnico": r.porcentaje_tecnico,
-#             "porcentaje_cc": r.porcentaje_cc,
-#             "subtotal": r.subtotal,
-#             "total": r.total,
-#         } for r in registros]
-
-#         db.bulk_insert_mappings(registrosSchemma, registros_db)
-#         db.commit()
-
-#         return {"message": "Registros agregados correctamente",
-#                 "registros": registros_db}
-
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error al insertar registros: {str(e)}"
-#         )
-
-#     except Exception as e:
-#         db.rollback()
-#         return 500, f"Error al insertar registros: {str(e)}"
-
-# def obtenerRegistrosSemana(semana:str, db: Session):
-
-#     semanaDB = db.query(SemanaTecnico).filter(
-#         SemanaTecnico.semana == semana,
-#     ).first()
-
-#     if not semanaDB:
-#         return 404, "La semana solicitada no existe"
-
-#     registrosSemana = db.query(registrosSchemma).filter(
-#         registrosSchemma.semana_id == semanaDB.id
-#     ).all()
-
-#     if not registrosSemana:
-#         return 0, "No hay registros para esta semana"
-
-#     return 0, registrosSemana
-
-
 
 def obtenerRegistrosSemana(semana: str, nombre: str, db: Session):
 
@@ -547,6 +471,7 @@ VALOR DEL SERVICIO (valor_servicio):
 - Si hay cash + cc → el total ya aparece explícito en el mensaje, ese es valor_servicio
 - Si hay solo cash → valor_servicio = ese monto
 - Si hay solo cc   → valor_servicio = ese monto
+- Si aparece UN SOLO número en el mensaje sin contexto de pago explícito → ese ES el valor_servicio, asumir CASH
 - Si hay un número solo que por contexto parece el total → valor_servicio = ese número
 - NUNCA sumes partes al valor_servicio
 - Si no puedes determinarlo → null

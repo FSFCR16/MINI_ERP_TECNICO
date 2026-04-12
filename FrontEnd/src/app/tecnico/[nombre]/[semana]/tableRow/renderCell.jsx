@@ -1,5 +1,6 @@
 import React from "react"
 import { actualizarPorcentajeCC } from "../../../../../Utils/api.js"
+import { procesarDatosTecnico } from "../../../../../Utils/api.js"
 
 export const CellRenderer = React.memo(({
   col,
@@ -11,12 +12,10 @@ export const CellRenderer = React.memo(({
   setCellRef,
   moverseEntreCeldas,
   columnasDeshabilitdasGenerales,
-  procesarDatosTecnico,
   setNotas,
   isMobile
 }) => {
 
-  console.log("render cell:", col.key);
 
   const component =
     typeof col.component === "function"

@@ -6,10 +6,10 @@ import {
     exportarExcelDBPost,
     updateRegistro
 } from "../../../../../Services/tencicosServices.js"
-
-import { procesarDatosTecnico, procesarData, formatearNumero } from "../../../../../Utils/api.js"
+import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod } from "../../../../../Utils/api.js"
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js'
 import { columnasBase } from '../tableRow/columnasBase.jsx'
+import { useRevertible } from '../../../../../app/hooks/useRevertible.js'
 
 export function useRegistroActions({
     nombre,
@@ -26,17 +26,17 @@ export function useRegistroActions({
     openError,
     closeModal,
 }) {
-
     const [elementosAEliminar, setElementosAEliminar] = useState([])
     const [guardando, setGuardando] = useState(false)
-    const [haycambiosPendientes, setHayCambiosPendientes] = useState(false)
 
     const openModalRef = useRef(openModal)
     useEffect(() => { openModalRef.current = openModal }, [openModal])
 
-    // ✅ Ref para que guardarCambios siempre vea el listRegistro fresco
     const listRegistroRef = useRef(listRegistro)
     useEffect(() => { listRegistroRef.current = listRegistro }, [listRegistro])
+
+    const { haycambiosPendientes, marcarCambio, revertirCambios, confirmarGuardado, getIdsModificados } =
+        useRevertible(listRegistroRef, setListRegistros)
 
     const buildColumns = (rowDataParam = {}, tipoTabla) =>
         columnasBase
@@ -64,15 +64,15 @@ export function useRegistroActions({
         )
     }
 
-    const mapearErroresZod = (error) =>
-        error.issues.map(issue => ({
-            label: issue.path[0].replaceAll("_", " ").toUpperCase(),
-            message: issue.message,
-            key: issue.path[0],
-        }))
-        
     const handleBtnAgregar = async () => {
-        const rowCopy = procesarData({ ...rowData })
+        // ✅ Primero limpias, luego procesás
+        const rowLimpio = { ...rowData }
+        if (rowLimpio.tipo_pago?.toLowerCase() !== "mixto") {
+            rowLimpio.valor_tarjeta = 0
+            rowLimpio.valor_efectivo = 0
+        }
+
+        const rowCopy = procesarData(rowLimpio)  // 👈 antes pasabas { ...rowData } directo
         rowCopy.id = crypto.randomUUID()
 
         const resultado = tecnicoSchema.safeParse(rowCopy)
@@ -81,25 +81,21 @@ export function useRegistroActions({
             return
         }
 
-        // 1. Agrega optimistamente a la tabla
         setListRegistros(prev => [...prev, rowCopy])
         setRow(procesarDatosTecnico(data[0]))
 
         try {
-            // 2. Guarda en DB
-            await envioTablaDB([rowCopy], semana)
+            const res = await envioTablaDB([rowCopy], semana)
+            const idReal = res?.registros?.[0]?.id
 
-            // 3. Trae los registros frescos del backend con sus ids reales
-            const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(() => null)
-            if (!registrosPrevios) return
-
-            const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
-                procesarDatosTecnico(data, dato)
-            )
-
-            // 4. Reemplaza la lista completa con los datos frescos (con id_registro correcto)
-            setListRegistros(dataPreviaProcesada)
-
+            if (idReal) {
+                setListRegistros(prev =>
+                    prev.map(r => r.id === rowCopy.id
+                        ? { ...r, id_registro: idReal }
+                        : r
+                    )
+                )
+            }
         } catch (err) {
             console.error("Error guardando:", err)
             setListRegistros(prev => prev.filter(r => r.id !== rowCopy.id))
@@ -118,9 +114,13 @@ export function useRegistroActions({
         setLoading(true)
         try {
             const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(() => [])
-            const dataPreviaProcesada = registrosPrevios.flatMap(dato =>
-                procesarDatosTecnico(data, dato)
-            )
+            const dataPreviaProcesada = registrosPrevios.flatMap(dato => {
+                const tecnicoMatch = data.find(
+                    t => t.job.replace(/\s+/g, "") === dato.job.replace(/\s+/g, "")
+                )
+                if (!tecnicoMatch) return []
+                return procesarDatosTecnico([tecnicoMatch], dato)
+            })
             setListRegistros(dataPreviaProcesada)
         } catch (error) {
             console.error("Error:", error)
@@ -162,10 +162,23 @@ export function useRegistroActions({
     }
 
     const actualizarCeldaRegistro = (rowIndex, colKey, nuevoValor) => {
+        marcarCambio(listRegistroRef.current[rowIndex]?.id_registro)  // ✅ usa el ref antes del update
         setListRegistros(prev => {
             const copia = [...prev]
             const filaActual = copia[rowIndex]
             let filaActualizada = { ...filaActual, [colKey]: nuevoValor }
+
+            // Si tipo_pago no es MIXTO, limpiar valor_tarjeta y valor_efectivo
+            if (colKey === "tipo_pago" && nuevoValor.toLowerCase() !== "mixto") {
+                filaActualizada.valor_tarjeta = 0
+                filaActualizada.valor_efectivo = 0
+            }
+
+            // Si editan valor_tarjeta o valor_efectivo y no es MIXTO, ignorar
+            if ((colKey === "valor_tarjeta" || colKey === "valor_efectivo") && 
+                filaActualizada.tipo_pago?.toLowerCase() !== "mixto") {
+                filaActualizada[colKey] = 0
+            }
 
             if (colKey === "porcentaje_cc") {
                 filaActualizada.porcentaje_cc_base = null
@@ -201,35 +214,30 @@ export function useRegistroActions({
             copia[rowIndex] = filaFinal
             return copia
         })
-
-        setHayCambiosPendientes(true)
     }
 
-    // ✅ Sin stale closure — usa ref para leer listRegistro fresco
     const guardarCambios = useCallback(async () => {
-        const registrosConId = listRegistroRef.current.filter(r => r.id_registro)
-        
-        // 👇 LOG 1: ¿hay registros con id para guardar?
-        console.log("Registros a guardar:", registrosConId.length, registrosConId.map(r => r.id_registro))
-        
+        if (!haycambiosPendientes) return
+        const ids = getIdsModificados()
+        const registrosConId = listRegistroRef.current.filter(r =>
+            r.id_registro && ids.has(r.id_registro)
+        )
         if (!registrosConId.length) return
 
         setGuardando(true)
         try {
-            const resultados = await Promise.all(
+            await Promise.all(
                 registrosConId.map(r => updateRegistro(r.id_registro, r))
             )
-            // 👇 LOG 2: ¿el backend respondió OK?
-            console.log("Guardado OK:", resultados)
-            setHayCambiosPendientes(false)
+            confirmarGuardado()
         } catch (err) {
-            // 👇 LOG 3: ¿hubo error?
             console.error("Error guardando:", err)
             openModalRef.current("ERROR_GUARDADO")
         } finally {
             setGuardando(false)
         }
-    }, [])
+    }, [confirmarGuardado, haycambiosPendientes, getIdsModificados])
+
     const procesarMensaje = (result) => {
         try {
             setRow(prev => {
@@ -280,6 +288,7 @@ export function useRegistroActions({
         actualizarCeldaRegistro,
         procesarMensaje,
         guardarCambios,
+        revertirCambios,
         haycambiosPendientes,
         guardando
     }

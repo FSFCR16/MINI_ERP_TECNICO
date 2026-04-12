@@ -1,5 +1,5 @@
 "use client"
-import { useReducer, useState, useRef } from "react"
+import { useReducer, useState, useRef, useEffect } from "react"
 import { Fragment } from "react"
 import { Transition, Dialog, DialogPanel } from "@headlessui/react"
 import { LoadingOverlay } from "@/Components/loadingOverlay.jsx"
@@ -7,10 +7,8 @@ import { ContentNoList } from "../tecnico/components_modal/content_noList.jsx"
 import { ContentList } from "../tecnico/components_modal/content_list.jsx"
 import { TrabajosView } from "./trabajosview.js"
 import { useTrabajosActions } from "./hooks/useTrabajosActions.js"
+import { TrabajosViewMobile } from "./table/TrabajosViewMobile.jsx"
 
-// ============================================================
-// REDUCER DEL MODAL — mismo patrón que page.jsx de registros
-// ============================================================
 const modalInicial = { isOpen: false, tipo: "", errores: [] }
 
 function modalReducer(state, action) {
@@ -48,13 +46,10 @@ function getConfigModal({ modal, confirmarAccion }) {
     }
 }
 
-// ============================================================
-// COMPONENTE PRINCIPAL
-// ============================================================
 export default function Page() {
     const [modal, dispatchModal] = useReducer(modalReducer, modalInicial)
     const [accionPendiente, setAccionPendiente] = useState(null)
-
+    const [isMobile, setIsMobile] = useState(false)
     const celdasTablaRef = useRef({})
     const checkboxMaestroRef = useRef(null)
     const guardandoRef = useRef(false)
@@ -94,14 +89,47 @@ export default function Page() {
         eliminarSeleccionados,
         actualizarCeldaTrabajo,
         guardando,
-        guardarCambios,        // ✅ nuevo
-        haycambiosPendientes,  // ✅ nuevo
+        guardarCambios,
+        revertirCambios,
+        haycambiosPendientes
     } = useTrabajosActions({
         openError,
         openModal,
         closeModal,
         pedirConfirmacion,
     })
+
+    // ✅ Refs para teclado — siempre apuntan a la versión más reciente
+    const guardarCambiosRef = useRef(guardarCambios)
+    useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
+
+    const revertirCambiosRef = useRef(revertirCambios)
+    useEffect(() => { revertirCambiosRef.current = revertirCambios }, [revertirCambios])
+
+    const guardandoRef2 = useRef(guardando)
+    useEffect(() => { guardandoRef2.current = guardando }, [guardando])
+
+    // ✅ Handlers estables via ref — evitan closures stale en mobile y en el listener de teclado
+    const guardarCambiosEstable = useRef((val) => guardarCambiosRef.current(val))
+    const revertirCambiosEstable = useRef((val) => revertirCambiosRef.current(val))
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const isS = (e.ctrlKey || e.metaKey) && e.key === "s"
+            const isZ = (e.ctrlKey || e.metaKey) && e.key === "z"
+
+            if (!isS && !isZ) return
+
+            e.preventDefault()
+            e.stopImmediatePropagation()
+
+            if (isS) guardarCambiosRef.current()
+            if (isZ) revertirCambiosRef.current(guardandoRef2.current)
+        }
+
+        document.addEventListener("keydown", handleKeyDown, true)
+        return () => document.removeEventListener("keydown", handleKeyDown, true)
+    }, [])
 
     const moverseEntreCeldas = (e, colIndex) => {
         if (e.target.tagName === "SELECT") e.preventDefault()
@@ -123,53 +151,85 @@ export default function Page() {
 
     const configModal = getConfigModal({ modal, confirmarAccion })
 
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768)
+        handleResize()
+        window.addEventListener("resize", handleResize)
+        return () => window.removeEventListener("resize", handleResize)
+    }, [])
+
+    // ✅ Estado y handlers compartidos — misma fuente para ambas vistas
+    const sharedState = {
+        trabajos,
+        rowData,
+        elementosAEliminar,
+        columnasTablaGeneral,
+        columnasTablaEditable,
+        activeCell,
+        activeHeader,
+        celdaEditando,
+        guardando,
+        haycambiosPendientes,
+    }
+
+    const sharedHandlers = {
+        setRow,
+        toggleSeleccion,
+        toggleSeleccionTodos,
+        // ✅ eliminarSeleccionados siempre pasa por pedirConfirmacion en ambas vistas
+        eliminarSeleccionados: () => pedirConfirmacion(eliminarSeleccionados),
+        handleBtnAgregar,
+        actualizarCeldaTrabajo,
+        setActiveCell,
+        setActiveHeader,
+        setCeldaEditando,
+        // ✅ guardar y revertir usan los refs — nunca son snapshots stale
+        guardarCambios: () => guardarCambiosRef.current(),
+        revertirCambios: (val) => revertirCambiosRef.current(val),
+    }
+
+    const sharedNav = {
+        celdasTablaRef,
+        checkboxMaestroRef,
+        guardandoRef,
+        moverseEntreCeldas,
+        moverseEnTablaGeneral,
+        baseRef,
+    }
+
     return (
         <>
             {loading && <LoadingOverlay />}
 
-            <TrabajosView
-                state={{
-                    trabajos,
-                    rowData,
-                    elementosAEliminar,
-                    columnasTablaGeneral,
-                    columnasTablaEditable,
-                    activeCell,
-                    activeHeader,
-                    celdaEditando,
-                    guardando,
-                    haycambiosPendientes,
-                }}
-                handlers={{
-                    setRow,
-                    toggleSeleccion,
-                    toggleSeleccionTodos,
-                    eliminarSeleccionados: () => pedirConfirmacion(eliminarSeleccionados),
-                    handleBtnAgregar,
-                    actualizarCeldaTrabajo,
-                    setActiveCell,
-                    setActiveHeader,
-                    setCeldaEditando,
-                    guardarCambios,
-                }}
-                nav={{
-                    celdasTablaRef,
-                    checkboxMaestroRef,
-                    guardandoRef,
-                    moverseEntreCeldas,
-                    moverseEnTablaGeneral,
-                    baseRef,
-                }}
-            />
+            {isMobile ? (
+                <TrabajosViewMobile
+                    state={sharedState}
+                    handlers={sharedHandlers}
+                    nav={sharedNav}
+                />
+            ) : (
+                <TrabajosView
+                    state={sharedState}
+                    handlers={sharedHandlers}
+                    nav={sharedNav}
+                />
+            )}
 
-            {/* MODAL */}
             <Transition appear show={modal.isOpen} as={Fragment}>
                 <Dialog as="div" className="relative z-50" onClose={closeModal}>
-                    <Transition.Child as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
+                    <Transition.Child
+                        as={Fragment}
+                        enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
+                        leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
+                    >
                         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
                     </Transition.Child>
                     <div className="fixed inset-0 flex items-center justify-center p-4">
-                        <Transition.Child as={Fragment} enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
+                        <Transition.Child
+                            as={Fragment}
+                            enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                            leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+                        >
                             <DialogPanel className="w-full max-w-md bg-white/80 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/40">
                                 {configModal[modal.tipo]?.modalRender === 1 && (
                                     <ContentNoList

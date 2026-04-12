@@ -61,7 +61,7 @@ export const columnasTrabajos = [
     },
     {
         key: "porcentaje_adicional_empresa",
-        label: "% EMPRESA",
+        label: "DOLAR ADICIONAL EMPRESA",
         component: "input",
         inputType: "number",
         editable: true

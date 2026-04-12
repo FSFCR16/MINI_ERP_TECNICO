@@ -70,8 +70,9 @@ export default function Page() {
         finalizarTabla, clickExportExcel,
         exportarExcelDB, actualizarCeldaRegistro,
         procesarMensaje, guardando,
-        guardarCambios,           // ✅ extraído correctamente
-        haycambiosPendientes,     // ✅ extraído correctamente
+        guardarCambios,
+        revertirCambios,
+        haycambiosPendientes,
     } = useRegistroActions({
         nombre, semana, data, rowData, setRow,
         listRegistro, setListRegistros,
@@ -80,10 +81,15 @@ export default function Page() {
         openModal, openError, closeModal,
     })
 
-    // ✅ guardarCambiosRef para que el listener siempre tenga la versión fresca
-    // sin necesidad de re-registrar el evento cada vez
+    // ✅ Refs para teclado
     const guardarCambiosRef = useRef(guardarCambios)
     useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
+
+    const revertirCambiosRef = useRef(revertirCambios)
+    useEffect(() => { revertirCambiosRef.current = revertirCambios }, [revertirCambios])
+
+    const guardandoRef2 = useRef(guardando)
+    useEffect(() => { guardandoRef2.current = guardando }, [guardando])
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -94,14 +100,21 @@ export default function Page() {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                e.preventDefault()
-                guardarCambiosRef.current()  // ✅ siempre llama la versión fresca, sin dependency warning
-            }
+            const isS = (e.ctrlKey || e.metaKey) && e.key === "s"
+            const isZ = (e.ctrlKey || e.metaKey) && e.key === "z"
+
+            if (!isS && !isZ) return
+
+            e.preventDefault()
+            e.stopImmediatePropagation()  // 👈 detiene otros listeners en el mismo elemento
+
+            if (isS) guardarCambiosRef.current()
+            if (isZ) revertirCambiosRef.current(guardandoRef2.current)
         }
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [])  // ✅ array vacío, sin warnings
+
+        document.addEventListener("keydown", handleKeyDown, true)  // 👈 document, no window
+        return () => document.removeEventListener("keydown", handleKeyDown, true)
+    }, [])
 
     if (error) return (
         <div className="w-full flex justify-center">
@@ -125,8 +138,10 @@ export default function Page() {
         activeHeader,
         celdaEditando,
         tieneError,
+        guardarCambios,
+        revertirCambios,
+        haycambiosPendientes,
         guardando,
-        haycambiosPendientes,   // ✅ nuevo
     }
 
     const handlers = {
@@ -138,7 +153,8 @@ export default function Page() {
         toggleSeleccionTodos,
         setRow,
         setNotas,
-        guardarCambios,         // ✅ nuevo
+        guardarCambios,
+        revertirCambios,
     }
 
     const nav = {
