@@ -6,7 +6,7 @@ import {
     exportarExcelDBPost,
     updateRegistro
 } from "../../../../../Services/tencicosServices.js"
-import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod } from "../../../../../Utils/api.js"
+import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod,actualizarPorcentajeCC } from "../../../../../Utils/api.js"
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js'
 import { columnasBase } from '../tableRow/columnasBase.jsx'
 import { useRevertible } from '../../../../../app/hooks/useRevertible.js'
@@ -265,8 +265,10 @@ export function useRegistroActions({
                 if (result.parts_gil)      newRow.partes_gil     = result.parts_gil
                 if (result.tipo_pago)      newRow.tipo_pago      = result.tipo_pago.toUpperCase()
 
-                if (data.length > 1 && found) return procesarDatosTecnico([found], newRow, true)[0]
-                return procesarDatosTecnico(data, newRow, true)[0]
+                if (data.length > 1 && found) {
+                    return actualizarPorcentajeCC(procesarDatosTecnico([found], newRow, true)[0])
+                }
+                return actualizarPorcentajeCC(procesarDatosTecnico(data, newRow, true)[0])
             })
         } catch (err) {
             console.error(err)
