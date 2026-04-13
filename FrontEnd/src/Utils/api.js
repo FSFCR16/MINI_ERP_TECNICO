@@ -143,11 +143,12 @@ function cash(params) {
     params.partes_gil
 
   const minimoTenicoValidacion = valorReal * (porcentajeT / 100)
-
+  const miniGil = valorReal * (porcentajeGil / 100)
   if (params.tech !== 0) return {
     ...params,
     total: formatearNumero(valorReal - params.tech + params.adicional_dolar + params.partes_gil)
   }
+  
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
@@ -169,7 +170,7 @@ function cash(params) {
     return {
       ...params,
       total: formatearNumero(
-        valorReal - params.minimo +
+        miniGil - params.minimo +
         params.partes_gil +
         params.adicional_dolar
       )
