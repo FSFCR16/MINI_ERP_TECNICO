@@ -169,7 +169,7 @@ function cash(params) {
     return {
       ...params,
       total: formatearNumero(
-        minimoTenicoValidacion +
+        valorReal - params.minimo +
         params.partes_gil +
         params.adicional_dolar
       )
