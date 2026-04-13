@@ -138,7 +138,7 @@ function cash(params) {
     params.partes_tecnico -
     params.partes_gil
 
-  const procesoTecnico = params.valor_servicio * (porcentajeGil / 100)
+  const procesoTecnico = valorReal * (porcentajeGil / 100)
   if (params.tech !== 0) return {
     ...params,
     total: formatearNumero(valorReal - params.tech + params.adicional_dolar + params.partes_gil)
