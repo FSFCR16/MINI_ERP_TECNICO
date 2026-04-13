@@ -139,7 +139,10 @@ function cash(params) {
     params.partes_gil
 
   const procesoTecnico = params.valor_servicio * (porcentajeT / 100)
-  if ( params.tech !== 0) return valorRealTarjeta - params.tech
+  if (params.tech !== 0) return {
+    ...params,
+    total: formatearNumero(valorReal - params.tech + params.adicional_dolar + params.partes_gil)
+  }
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
@@ -183,8 +186,10 @@ function CC(params) {
 
   const procesoTecnico = valorRealTarjeta * (porcentajeT / 100)
 
-  if ( params.tech !== 0) return params.tech - params.adicional_dolar
-
+  if (params.tech !== 0) return {
+  ...params,
+  total: formatearNumero((params.tech - params.porcentaje_cc + params.partes_tecnico + params.adicional_dolar) * -1)
+  } 
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
