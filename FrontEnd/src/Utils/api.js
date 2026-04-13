@@ -142,7 +142,6 @@ function cash(params) {
     params.partes_tecnico -
     params.partes_gil
 
-  const procesoTecnico = valorReal * (porcentajeGil / 100)
   const minimoTenicoValidacion = valorReal * (porcentajeT / 100)
 
   if (params.tech !== 0) return {
@@ -156,23 +155,23 @@ function cash(params) {
     }
   }
 
-  if (procesoTecnico > params.minimo || params.tipo_pago === "MIXTO") {
-    return {
-      ...params,
-      total: formatearNumero(
-        procesoTecnico +
-        params.partes_gil +
-        params.adicional_dolar
-      )
-    }
-  }
-
   if (minimoTenicoValidacion > 0 && minimoTenicoValidacion <= params.minimo) {
     return {
       ...params,
       total: formatearNumero(
         (valorReal - params.minimo) +
         params.adicional_dolar + params.partes_gil
+      )
+    }
+  }
+
+  if (minimoTenicoValidacion > params.minimo || params.tipo_pago === "MIXTO") {
+    return {
+      ...params,
+      total: formatearNumero(
+        minimoTenicoValidacion +
+        params.partes_gil +
+        params.adicional_dolar
       )
     }
   }
