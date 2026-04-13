@@ -183,7 +183,8 @@ function CC(params) {
 
   const procesoTecnico = valorRealTarjeta * (porcentajeT / 100)
 
-  if ( params.tech !== 0) return valorRealTarjeta - params.tech
+  if ( params.tech !== 0) return params.tech - params.adicional_dolar
+
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
