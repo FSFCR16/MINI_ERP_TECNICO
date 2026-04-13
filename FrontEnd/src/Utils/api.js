@@ -188,7 +188,7 @@ function CC(params) {
 
   if (params.tech !== 0) return {
   ...params,
-  total: formatearNumero((params.tech - params.porcentaje_cc + params.partes_tecnico + params.adicional_dolar) * -1)
+  total: formatearNumero((params.tech - params.porcentaje_cc + params.partes_tecnico - params.adicional_dolar) * -1)
   } 
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
