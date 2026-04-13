@@ -62,7 +62,7 @@ export function DesktopView({ state, handlers, nav, modal }) {
                 <div className="w-full bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl shadow-sm px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-white/60 border border-white/50 text-slate-500 uppercase tracking-wide">Técnico</span>
-                        <span className="text-sm text-slate-800">{nombre}</span>
+                        <span className="text-sm text-slate-800">{decodeURIComponent(nombre)}</span>
                         <span className="text-slate-300 select-none">·</span>
                         <span className="text-[11px] font-medium px-3 py-1 rounded-full bg-white/60 border border-white/50 text-slate-500 uppercase tracking-wide">Semana</span>
                         <span className="text-sm text-slate-600">
