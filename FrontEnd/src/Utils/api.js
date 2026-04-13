@@ -213,7 +213,7 @@ function CC(params) {
     return {
       ...params,
       total: formatearNumero(
-        (params.minimo + params.partes_tecnico - params.partes_gil - params.adicional_dolar) * -1
+        (params.minimo - params.porcentaje_cc + params.partes_tecnico - params.partes_gil - params.adicional_dolar) * -1
       )
     }
   }
