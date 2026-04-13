@@ -42,7 +42,7 @@ export const tecnicoSchema = z.object({
       })
     }
 
-    if ((data.valor_tarjeta + data.valor_efectivo) !== data.valor_servicio) {
+    if (Math.round((data.valor_tarjeta + data.valor_efectivo) * 100) !== Math.round(data.valor_servicio * 100)) {
 
     ctx.addIssue({
         code: z.ZodIssueCode.custom,

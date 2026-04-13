@@ -120,10 +120,13 @@ export function actualizarPorcentajeCC(row) {
     row.porcentaje_cc_base != null &&
     row.valor_servicio > 0
   ) {
+    // ✅ en mixto usa valor_tarjeta, en cc usa valor_servicio
+    const base = tipo === "mixto" ? row.valor_tarjeta : row.valor_servicio
+
     return {
       ...row,
       porcentaje_cc: formatearNumero(
-        row.valor_servicio * (row.porcentaje_cc_base / 100)
+        base * (row.porcentaje_cc_base / 100)
       )
     }
   }
@@ -140,6 +143,8 @@ function cash(params) {
     params.partes_gil
 
   const procesoTecnico = valorReal * (porcentajeGil / 100)
+  const minimoTenicoValidacion = valorReal * (porcentajeT / 100)
+
   if (params.tech !== 0) return {
     ...params,
     total: formatearNumero(valorReal - params.tech + params.adicional_dolar + params.partes_gil)
@@ -162,7 +167,7 @@ function cash(params) {
     }
   }
 
-  if (procesoTecnico > 0 && procesoTecnico <= params.minimo) {
+  if (minimoTenicoValidacion > 0 && minimoTenicoValidacion <= params.minimo) {
     return {
       ...params,
       total: formatearNumero(
