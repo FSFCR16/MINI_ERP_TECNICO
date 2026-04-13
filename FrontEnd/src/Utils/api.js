@@ -170,7 +170,7 @@ function cash(params) {
     return {
       ...params,
       total: formatearNumero(
-        miniGil - params.minimo +
+        miniGil +
         params.partes_gil +
         params.adicional_dolar
       )
