@@ -1,14 +1,14 @@
 "use client"
 
-import { useEffect, useState, Fragment, useRef } from "react"
-import { traerSemanas, traerTecnicosSemana, eliminarSemana, eliminarTecnicoSemana, obtenerTecnicos } from "../../Services/tencicosServices.js"
+import { useEffect, useState, useRef } from "react"
+import { traerSemanas, traerTecnicosSemana, eliminarSemana, eliminarTecnicoSemana, obtenerTecnicos, getRegistrosPrevios, exportarExcelDBPost } from "../../Services/tencicosServices.js"
 import { LoadingOverlay } from "@/Components/loadingOverlay.jsx"
 import { useRouter } from "next/navigation"
-import { DialogPanel, Transition, TransitionChild, Dialog } from '@headlessui/react'
-import { ContentNoList } from '../tecnico/components_modal/content_noList.jsx'
+import { useModalState } from "../tecnico/[nombre]/[semana]/hooks/useModalState.js"
+import { ModalManager } from "../tecnico/components_modal/ModalManager.jsx"
 import { formatearNumero } from "@/Utils/api.js"
 import Link from "next/link"
-
+import { ModalAgregarTecnico } from "../tecnico/components_modal/ModalAgregarTecnico.jsx"
 export default function Page() {
 
     const [loading, setLoading] = useState(true)
@@ -16,14 +16,15 @@ export default function Page() {
     const [vistaSemanas, setVistaSemanas] = useState(true)
     const [listSemanas, setListSemanas] = useState([])
     const [listTecnicos, setListTecnicos] = useState([])
-    const [modalAction, setModalAction] = useState(null)
     const [listFiltrada, setListFiltrada] = useState([])
     const [busqueda, setBusqueda] = useState("")
     const [semanaSeleccionada, setSemanaSeleccionada] = useState(null)
-    const [isOpen, setIsOpen] = useState(false)
-    const [modalTipo, setModalTipo] = useState(null)
+    const [accionPendiente, setAccionPendiente] = useState(null)
 
-    // ── Agregar técnico ────────────────────────────────────────
+    // modal
+    const { modal, openModal, openError, closeModal } = useModalState()
+
+    // modal agregar técnico
     const [modalAgregar, setModalAgregar] = useState(false)
     const [tecnicos, setTecnicos] = useState([])
     const [busquedaTecnico, setBusquedaTecnico] = useState("")
@@ -34,31 +35,9 @@ export default function Page() {
         t.toLowerCase().startsWith(busquedaTecnico.toLowerCase())
     )
     const tecnicoValido = tecnicos.includes(busquedaTecnico.toUpperCase())
-    // ──────────────────────────────────────────────────────────
 
     const router = useRouter()
     const totalSemana = listTecnicos.reduce((acc, t) => acc + (t.total || 0), 0)
-
-    const configModal = {
-        "ELIMINAR_SEMANA": {
-            title: "ELIMINAR SEMANA",
-            message: "Esta acción eliminará todos los registros de la semana. ¿Desea continuar?",
-            confirmText: "ELIMINAR",
-            cancelText: "CANCELAR",
-            showBtn: true,
-            modalRender: 1,
-            hasFunction: true,
-        },
-        "ELIMINAR_TECNICO": {
-            title: "ELIMINAR REGISTROS",
-            message: "Se eliminarán todos los registros del técnico en esta semana.",
-            confirmText: "ELIMINAR",
-            cancelText: "CANCELAR",
-            showBtn: true,
-            modalRender: 1,
-            hasFunction: true,
-        },
-    }
 
     useEffect(() => {
         const cargarSemanas = async () => {
@@ -120,7 +99,7 @@ export default function Page() {
 
     async function handleEliminarSemana(semana_id) {
         try {
-            setIsOpen(false)
+            closeModal()
             setLoading(true)
             await eliminarSemana(semana_id)
             const nuevasSemanas = listSemanas.filter(s => s.id !== semana_id)
@@ -136,7 +115,7 @@ export default function Page() {
 
     async function handleEliminarTecnico(nombre) {
         try {
-            setIsOpen(false)
+            closeModal()
             setLoading(true)
             await eliminarTecnicoSemana(nombre, semanaSeleccionada.id)
             const nuevaLista = listTecnicos.filter(t => t.nombre !== nombre)
@@ -148,6 +127,65 @@ export default function Page() {
         } finally {
             setLoading(false)
         }
+    }
+
+    // ── Exportar Excel desde historial ─────────────────────────
+    async function handleExportarExcel(tecnico) {
+        try {
+            setLoading(true)
+            const registros = await getRegistrosPrevios(tecnico.nombre, tecnico.semana)
+            if (!registros?.length) {
+                openModal("SIN_REGISTROS")
+                return
+            }
+
+            // El backend solo necesita id_registro para hacer la query
+            // Mapeamos con los campos mínimos que valida SemanaTecnicoSchemaFront
+            const registrosParaExportar = registros.map(r => ({
+                id: String(r.id),
+                id_registro: r.id,
+                id_tecnico: r.tecnico_id,
+                nombre: r.nombre,
+                job: r.job ?? "",
+                job_name: r.job_name ?? "",
+                valor_servicio: r.valor_servicio ?? 0,
+                porcentaje_tecnico: r.porcentaje_tecnico ?? 0,
+                minimo: 0,
+                opciones_pago: [],
+                tipo_pago: r.tipo_pago ?? "CASH",
+                valor_tarjeta: r.valor_tarjeta ?? 0,
+                valor_efectivo: r.valor_efectivo ?? 0,
+                porcentaje_cc: r.porcentaje_cc ?? 0,
+                partes_gil: r.partes_gil ?? 0,
+                partes_tecnico: r.partes_tecnico ?? 0,
+                tech: r.tech ?? 0,
+                subtotal: r.subtotal ?? 0,
+                total: r.total ?? 0,
+                adicional_dolar: 0,
+                notas: [],
+            }))
+
+            const response = await exportarExcelDBPost(registrosParaExportar, tecnico.nombre, tecnico.semana)
+            const blob = await response.blob()
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `${tecnico.nombre}_${tecnico.semana}.xlsx`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+        } catch (err) {
+            console.error("Error exportando:", err)
+            setError("Error exportando excel")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // ── Modal eliminar genérico ────────────────────────────────
+    function abrirModalEliminar(tipo, accion) {
+        setAccionPendiente(() => accion)
+        openModal(tipo)
     }
 
     // ── Handlers modal agregar técnico ─────────────────────────
@@ -186,7 +224,6 @@ export default function Page() {
         }
         if (e.key === "Escape") setModalAgregar(false)
     }
-    // ──────────────────────────────────────────────────────────
 
     if (error) {
         return (
@@ -207,7 +244,6 @@ export default function Page() {
 
                     {/* ===== HEADER ===== */}
                     <div className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 flex flex-col gap-3 shadow-sm">
-
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                                 <div>
@@ -232,11 +268,9 @@ export default function Page() {
                                                 ${formatearNumero(totalSemana)}
                                             </span>
                                         </div>
-
-                                        {/* ── Botón agregar técnico ── */}
                                         <button
                                             onClick={abrirModalAgregar}
-                                            className="flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-indigo-500/90 text-white font-medium shadow-sm hover:bg-indigo-500 active:scale-95 transition-all duration-200"
+                                            className="pointer flex items-center gap-1.5 px-4 py-1.5 text-xs rounded-xl bg-indigo-500/90 text-white font-medium shadow-sm hover:bg-indigo-500 active:scale-95 transition-all duration-200"
                                         >
                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -289,10 +323,7 @@ export default function Page() {
                     {vistaSemanas && (
                         <div className="flex flex-col gap-3">
                             {listFiltrada.map((semana) => (
-                                <div
-                                    key={semana.id}
-                                    className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200"
-                                >
+                                <div key={semana.id} className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200">
                                     <div className="flex items-center justify-between gap-4 flex-wrap">
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-semibold text-slate-800">
@@ -305,7 +336,6 @@ export default function Page() {
                                                 </p>
                                             )}
                                         </div>
-
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => cargarTecnicosSemana(semana)}
@@ -317,13 +347,8 @@ export default function Page() {
                                                 </svg>
                                                 Ver
                                             </button>
-
                                             <button
-                                                onClick={() => {
-                                                    setModalAction(() => () => handleEliminarSemana(semana.id))
-                                                    setModalTipo("ELIMINAR_SEMANA")
-                                                    setIsOpen(true)
-                                                }}
+                                                onClick={() => abrirModalEliminar("ELIMINAR_SEMANA", () => handleEliminarSemana(semana.id))}
                                                 className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/60 border border-white/50 text-rose-400 hover:bg-rose-50/60 hover:text-rose-500 active:scale-95 transition"
                                             >
                                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -341,15 +366,10 @@ export default function Page() {
                     {!vistaSemanas && (
                         <div className="flex flex-col gap-3">
                             {listFiltrada.map((cart) => (
-                                <div
-                                    key={cart.id}
-                                    className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200"
-                                >
+                                <div key={cart.id} className="bg-white/55 backdrop-blur-xl border border-white/40 rounded-2xl px-5 py-4 shadow-sm hover:bg-white/70 hover:shadow-md transition-all duration-200">
                                     <div className="flex items-center justify-between gap-4 flex-wrap">
                                         <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-800 truncate">
-                                                {cart.nombre}
-                                            </p>
+                                            <p className="text-sm font-semibold text-slate-800 truncate">{cart.nombre}</p>
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="text-[11px] font-semibold text-indigo-600 px-2 py-0.5 rounded-lg bg-indigo-50/80 border border-indigo-100/60">
                                                     ${formatearNumero(cart.total)}
@@ -361,9 +381,10 @@ export default function Page() {
                                         </div>
 
                                         <div className="flex items-center gap-2">
+                                            {/* ── Ver ── */}
                                             <button
                                                 onClick={() => router.push(`/tecnico/${cart.nombre}/${cart.semana}`)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-white/60 border border-white/50 text-indigo-600 font-medium hover:bg-indigo-50/60 active:scale-95 transition"
+                                                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-white/60 border border-white/50 text-indigo-600 font-medium hover:border-indigo-300 hover:bg-indigo-100 active:scale-95 transition"
                                             >
                                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -372,13 +393,21 @@ export default function Page() {
                                                 Ver
                                             </button>
 
+                                            {/* ── Exportar Excel ── */}
                                             <button
-                                                onClick={() => {
-                                                    setModalAction(() => () => handleEliminarTecnico(cart.nombre))
-                                                    setModalTipo("ELIMINAR_TECNICO")
-                                                    setIsOpen(true)
-                                                }}
-                                                className="w-7 h-7 flex items-center justify-center rounded-xl bg-white/60 border border-white/50 text-rose-400 hover:bg-rose-50/60 hover:text-rose-500 active:scale-95 transition"
+                                                onClick={() => handleExportarExcel(cart)}
+                                                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-white/60 border border-white/50 text-green-600 font-medium hover:border-green-300 hover:bg-green-100 active:scale-95 transition"
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                </svg>
+                                                Excel
+                                            </button>
+
+                                            {/* ── Eliminar ── */}
+                                            <button
+                                                onClick={() => abrirModalEliminar("ELIMINAR_TECNICO", () => handleEliminarTecnico(cart.nombre))}
+                                                className="cursor-pointer w-7 h-7 flex items-center justify-center rounded-xl bg-white/60 border border-white/50 text-rose-400 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-500 active:scale-95 transition"
                                             >
                                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -390,127 +419,34 @@ export default function Page() {
                             ))}
                         </div>
                     )}
-
                 </div>
             </div>
 
-            {/* ===== MODAL ELIMINAR ===== */}
-            <Transition appear show={isOpen} as={Fragment}>
-                <Dialog as="div" className="relative z-50" onClose={() => setIsOpen(false)}>
-                    <TransitionChild
-                        as={Fragment}
-                        enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-                        leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
-                    >
-                        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-                    </TransitionChild>
-                    <div className="fixed inset-0 flex items-center justify-center p-4">
-                        <TransitionChild
-                            as={Fragment}
-                            enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-                            leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-                        >
-                            <DialogPanel className="w-full max-w-md bg-white/80 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/40">
-                                {configModal[modalTipo]?.modalRender === 1 && (
-                                    <ContentNoList
-                                        message={configModal[modalTipo].message}
-                                        title={configModal[modalTipo].title}
-                                        btnTextCancel={configModal[modalTipo].cancelText}
-                                        btnTextConfirm={configModal[modalTipo].confirmText}
-                                        setIsOpen={setIsOpen}
-                                        hasFunction={true}
-                                        functionAction={modalAction}
-                                        showBtn={true}
-                                    />
-                                )}
-                            </DialogPanel>
-                        </TransitionChild>
-                    </div>
-                </Dialog>
-            </Transition>
+            {/* ===== MODAL MANAGER ===== */}
+            <ModalManager
+                modal={modal}
+                closeModal={closeModal}
+                openModal={openModal}
+                finalizarTabla={accionPendiente}
+                exportarExcelDB={accionPendiente}
+                setError={setError}
+                setLoading={setLoading}
+                nombre=""
+            />
 
             {/* ===== MODAL AGREGAR TÉCNICO ===== */}
-            <Transition appear show={modalAgregar} as={Fragment}>
-                <Dialog as="div" className="relative z-50" onClose={() => setModalAgregar(false)}>
-                    <TransitionChild
-                        as={Fragment}
-                        enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-                        leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
-                    >
-                        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-                    </TransitionChild>
-
-                    <div className="fixed inset-0 flex items-center justify-center p-4">
-                        <TransitionChild
-                            as={Fragment}
-                            enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-                            leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-                        >
-                            <DialogPanel className="w-full max-w-md bg-white/80 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/40 flex flex-col gap-4">
-                                <h2 className="text-sm font-semibold text-slate-700">Agregar técnico a la semana</h2>
-
-                                <div className="relative">
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={busquedaTecnico}
-                                        placeholder="Buscar técnico..."
-                                        onChange={(e) => { setBusquedaTecnico(e.target.value); setIndexResaltado(-1) }}
-                                        onKeyDown={manejarTecladoModal}
-                                        className={`w-full bg-white/50 border rounded-xl px-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 outline-none focus:bg-white/70 transition-all ${
-                                            tecnicoValido ? "border-green-300/70" : "border-white/40"
-                                        }`}
-                                    />
-                                    {tecnicoValido && (
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                            <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        </div>
-                                    )}
-
-                                    {busquedaTecnico && filtradosTecnicos.length > 0 && !tecnicoValido && (
-                                        <ul className="absolute w-full mt-2 bg-white/90 backdrop-blur-xl border border-white/50 rounded-2xl shadow-xl overflow-auto max-h-48 z-50">
-                                            {filtradosTecnicos.map((nombre, i) => (
-                                                <li
-                                                    key={nombre}
-                                                    ref={el => itemsRef.current[i] = el}
-                                                    onClick={() => { setBusquedaTecnico(nombre); setIndexResaltado(-1) }}
-                                                    className={`px-4 py-2.5 text-sm text-slate-700 cursor-pointer transition-all ${
-                                                        i < filtradosTecnicos.length - 1 ? "border-b border-white/40" : ""
-                                                    } ${indexResaltado === i ? "bg-indigo-50/80 text-indigo-700" : "hover:bg-white/60"}`}
-                                                >
-                                                    {nombre}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-2 justify-end">
-                                    <button
-                                        onClick={() => setModalAgregar(false)}
-                                        className="px-4 py-2 text-xs rounded-xl bg-white/60 border border-white/50 text-slate-500 font-medium hover:bg-white/80 transition"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={confirmarAgregarTecnico}
-                                        disabled={!tecnicoValido}
-                                        className={`px-4 py-2 text-xs rounded-xl font-medium transition ${
-                                            tecnicoValido
-                                                ? "bg-indigo-500 text-white hover:bg-indigo-600 active:scale-95"
-                                                : "bg-white/40 text-slate-400 cursor-not-allowed border border-white/40"
-                                        }`}
-                                    >
-                                        Ir al técnico
-                                    </button>
-                                </div>
-                            </DialogPanel>
-                        </TransitionChild>
-                    </div>
-                </Dialog>
-            </Transition>
+            <ModalAgregarTecnico
+                isOpen={modalAgregar}
+                onClose={() => setModalAgregar(false)}
+                tecnicos={tecnicos}
+                busquedaTecnico={busquedaTecnico}
+                setBusquedaTecnico={setBusquedaTecnico}
+                indexResaltado={indexResaltado}
+                setIndexResaltado={setIndexResaltado}
+                itemsRef={itemsRef}
+                onConfirmar={confirmarAgregarTecnico}
+                onKeyDown={manejarTecladoModal}
+            />
         </>
     )
 }

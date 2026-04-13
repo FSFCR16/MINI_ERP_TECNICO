@@ -148,7 +148,7 @@ def obtenerRegistrosSemana(semana: str, nombre: str, db: Session):
     registros = db.query(registrosSchemma).filter(
         registrosSchemma.semana_id == semanaDB.id,
         registrosSchemma.nombre == nombre
-    ).all()
+    ).order_by(registrosSchemma.id.asc()).all()
 
     return registros
 

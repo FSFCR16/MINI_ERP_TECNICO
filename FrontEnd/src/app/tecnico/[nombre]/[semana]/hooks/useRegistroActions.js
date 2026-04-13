@@ -94,7 +94,7 @@ export function useRegistroActions({
             return
         }
 
-        setListRegistros(prev => [...prev, rowCopy])
+        setListRegistros(prev => [rowCopy, ...prev])
         setRow(procesarDatosTecnico(data[0]))
 
         try {
