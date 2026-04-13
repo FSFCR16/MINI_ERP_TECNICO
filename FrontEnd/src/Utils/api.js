@@ -139,11 +139,7 @@ function cash(params) {
     params.partes_gil
 
   const procesoTecnico = params.valor_servicio * (porcentajeT / 100)
-
-  const valorDescontar = params.tech
-    ? valorReal - params.tech
-    : valorReal * (porcentajeGil / 100)
-
+  if ( params.tech !== 0) return valorRealTarjeta - params.tech
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
@@ -155,7 +151,7 @@ function cash(params) {
     return {
       ...params,
       total: formatearNumero(
-        valorDescontar +
+        procesoTecnico +
         params.partes_gil +
         params.adicional_dolar
       )
@@ -187,10 +183,7 @@ function CC(params) {
 
   const procesoTecnico = valorRealTarjeta * (porcentajeT / 100)
 
-  const valorDescontar = params.tech
-    ? valorRealTarjeta - params.tech
-    : procesoTecnico
-
+  if ( params.tech !== 0) return valorRealTarjeta - params.tech
   if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
@@ -204,7 +197,7 @@ function CC(params) {
     return {
       ...params,
       total: formatearNumero(
-        (valorDescontar + params.partes_tecnico - params.adicional_dolar) * -1
+        (procesoTecnico + params.partes_tecnico - params.adicional_dolar) * -1
       )
     }
   }
