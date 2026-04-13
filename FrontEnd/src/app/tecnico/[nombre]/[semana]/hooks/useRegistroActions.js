@@ -65,14 +65,27 @@ export function useRegistroActions({
     }
 
     const handleBtnAgregar = async () => {
-        // ✅ Primero limpias, luego procesás
         const rowLimpio = { ...rowData }
+
+        // ✅ Convertir strings vacíos a 0 en campos numéricos
+        const camposNumericos = [
+            "valor_servicio", "valor_tarjeta", "valor_efectivo",
+            "partes_gil", "partes_tecnico", "tech",
+            "porcentaje_cc", "porcentaje_tecnico", "adicional_dolar",
+            "subtotal", "total"
+        ]
+        camposNumericos.forEach(campo => {
+            if (rowLimpio[campo] === "" || rowLimpio[campo] == null) {
+                rowLimpio[campo] = 0
+            }
+        })
+
         if (rowLimpio.tipo_pago?.toLowerCase() !== "mixto") {
             rowLimpio.valor_tarjeta = 0
             rowLimpio.valor_efectivo = 0
         }
 
-        const rowCopy = procesarData(rowLimpio)  // 👈 antes pasabas { ...rowData } directo
+        const rowCopy = procesarData(rowLimpio)
         rowCopy.id = crypto.randomUUID()
 
         const resultado = tecnicoSchema.safeParse(rowCopy)
@@ -102,7 +115,6 @@ export function useRegistroActions({
             openModal("ERROR_GUARDADO")
         }
     }
-
     const eliminarSeleccionados = async () => {
         setListRegistros(listRegistro.filter(d => !elementosAEliminar.includes(d)))
         await eliminarRegistrosDb(elementosAEliminar.filter(d => d.id_registro))
@@ -204,7 +216,7 @@ export function useRegistroActions({
                 "valor_servicio", "valor_efectivo", "valor_tarjeta",
                 "partes_gil", "partes_tecnico", "tech", "tipo_pago",
                 "aplica_dolar_empresa", "adicional_dolar",
-                "porcentaje_tecnico", "porcentaje_cc"
+                "porcentaje_tecnico", "porcentaje_cc","is_cash" 
             ]
 
             const filaFinal = camposQueRecalculan.includes(colKey)

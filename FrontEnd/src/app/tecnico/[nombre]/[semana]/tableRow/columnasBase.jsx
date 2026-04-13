@@ -140,5 +140,12 @@ export const columnasBase = [
         component: "input",
         inputType: "number",
         editable: false        // se calcula solo con procesarData
+    },
+    {
+        key: "is_cash",
+        label: "CC COMO CASH",
+        component: "checkbox",
+        disableOnPago: ["CASH"], // solo visible en CASH
+        editable: true
     }
 ]

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatearNumero } from '../../../../../../Utils/api.js'
-import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx' // ajusta path
+import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 
 export function TablaRegistros({ state, handlers, nav }) {
 
@@ -48,7 +48,6 @@ export function TablaRegistros({ state, handlers, nav }) {
                     )}
                 </div>
 
-                {/* BUSCADOR */}
                 {listRegistro.length > 0 && (
                     <div className="flex-1 max-w-xs">
                         <BuscadorRegistros
@@ -108,7 +107,6 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <tbody>
                         {listaVisible.map((row, indexrow) => {
-                            // índice real para actualizarCeldaRegistro
                             const indexReal = listRegistro.indexOf(row)
 
                             return (
@@ -124,10 +122,15 @@ export function TablaRegistros({ state, handlers, nav }) {
                                         const esEditable = col.editable !== false
                                         const estaGuardando = guardando?.[indexrow]
 
+                                        // ✅ fix: resolver component igual que CellRenderer
+                                        const component = typeof col.component === "function"
+                                            ? col.component({ rowData: row })
+                                            : col.component ?? col.tipo
+
                                         return (
                                             <td
                                                 key={indexCol}
-                                                className={`px-1 py-1 border-b border-white/30 ${indexCol === 0 ? "text-center w-[32px]" : "text-right"}`}
+                                                className={`px-1 py-1 border-b border-white/30 ${indexCol === 0 ? "text-center w-[32px]" : "text-center"}`}
                                             >
                                                 {indexCol === 0 ? (
                                                     <input
@@ -136,6 +139,16 @@ export function TablaRegistros({ state, handlers, nav }) {
                                                         onChange={() => toggleSeleccion(row)}
                                                         className="w-3.5 h-3.5 cursor-pointer"
                                                     />
+
+                                                // ✅ fix: checkbox para is_cash sin doble click
+                                                ) : component === "checkbox" ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!value}
+                                                        onChange={(e) => actualizarCeldaRegistro(indexReal, col.key, e.target.checked)}
+                                                        className="w-4 h-4 cursor-pointer accent-indigo-500"
+                                                    />
+
                                                 ) : celdaEditando === cellKey ? (
                                                     <input
                                                         autoFocus

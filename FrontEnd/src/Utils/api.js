@@ -21,6 +21,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null, mensaje = false
       tech: 0,
       subtotal: 0,
       total: 0,
+      is_cash: false,
       adicional_dolar: dato.adicional_dolar,
       id_registro: datosPrevios?.id ?? null,
       aplica_dolar_empresa: dato.porcentaje_adicional_empresa > 0 ? "SI" : "NO",
@@ -166,7 +167,7 @@ function cash(params) {
       ...params,
       total: formatearNumero(
         (valorReal - params.minimo) +
-        params.adicional_dolar
+        params.adicional_dolar + params.partes_gil
       )
     }
   }
@@ -220,6 +221,20 @@ function CC(params) {
   return params
 }
 
+function ccComoCash(params) {
+  const valorServicioOriginal = params.valor_servicio
+  
+  const resultado = cash({
+    ...params,
+    valor_servicio: params.valor_servicio - params.porcentaje_cc
+  })
+
+  return {
+    ...resultado,
+    valor_servicio: valorServicioOriginal  // 👈 restaurar el original
+  }
+}
+
 function mixto(params) {
   const cashParams = {
     ...params,
@@ -244,6 +259,8 @@ function mixto(params) {
   }
 }
 
+
+
 export function procesarData(data) {
   // Fix: no mutar el objeto original — trabajar sobre una copia
   const d = { ...data }
@@ -254,7 +271,7 @@ export function procesarData(data) {
 
   // porcentaje_cc ya es un valor fijo en dólares aprobado por el usuario.
   // No se recalcula aquí bajo ningún motivo.
-
+  if (d.tipo_pago.toLowerCase() === "cc" && d.is_cash === true) return ccComoCash(d)
   if (d.tipo_pago.toLowerCase() === "cc") return CC(d)
   if (d.tipo_pago.toLowerCase() === "mixto") return mixto(d)
   return cash(d)

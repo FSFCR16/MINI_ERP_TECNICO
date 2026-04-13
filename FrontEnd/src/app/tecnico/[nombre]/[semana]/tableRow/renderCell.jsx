@@ -123,6 +123,16 @@ export const CellRenderer = React.memo(({
           ))}
         </select>
       );
+      case "checkbox":
+        return (
+          <input
+            ref={baseRef}
+            type="checkbox"
+            checked={!!value}
+            onChange={(e) => setCell(e.target.checked)}
+            className="w-4 h-4 cursor-pointer accent-indigo-500"
+          />
+        );
 
     default:
       const inputType =
