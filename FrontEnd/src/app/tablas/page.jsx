@@ -339,7 +339,7 @@ export default function Page() {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => cargarTecnicosSemana(semana)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-white/60 border border-white/50 text-indigo-600 font-medium hover:bg-indigo-50/60 active:scale-95 transition"
+                                                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl bg-white/60 border border-white/50 text-indigo-600 font-medium hover:border-indigo-300 hover:bg-indigo-100 active:scale-95 transition"
                                             >
                                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

@@ -222,6 +222,7 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
     registrosDB = (
         db.query(registrosSchemma)
         .filter(registrosSchemma.id.in_(listIDSRegistros))
+        .order_by(registrosSchemma.created_at.asc())
         .all()
     )
 
@@ -307,16 +308,6 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
     df_export = df_export[columnas]
 
     # -----------------------------
-    # tabla BALANCED TECH
-    # -----------------------------
-
-    balanced_tech = df_export["TOTAL"].sum()
-
-    df_balance = pd.DataFrame({
-        "BALANCED TECH": [balanced_tech]
-    })
-
-    # -----------------------------
     # crear excel
     # -----------------------------
 
@@ -328,12 +319,6 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
 
         dfResultado.to_excel(writer, startrow=fila_inicio, index=False)
 
-        df_balance.to_excel(
-            writer,
-            startrow=fila_inicio,
-            startcol=8,
-            index=False
-        )
 
     output = estilizar_excel(output, df_export, dfResultado, fila_inicio) 
     output.seek(0) 
@@ -349,8 +334,6 @@ def obtenerSemanasDisponibles(db: Session):
     )
 
     return semanas
-
-from sqlalchemy import func
 
 def obtenerTecnicosPorSemana(semana_id: int, db: Session):
 
