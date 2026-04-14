@@ -2,7 +2,7 @@ from sqlalchemy import Column, TIMESTAMP ,Integer, String, Float, Date, ForeignK
 from sqlalchemy.orm import relationship
 from app.db import Base
 from sqlalchemy.sql import func
-from datetime import date
+from datetime import date, datetime, timezone
 
 class Trabajo(Base):
     __tablename__ = "tecnicos"
