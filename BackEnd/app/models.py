@@ -48,11 +48,8 @@ class registrosSchemma(Base):
     porcentaje_cc = Column(Float, nullable=True)
     subtotal = Column(Float, nullable=True)
     total = Column(Float, nullable=True)
-    created_at = Column(
-    TIMESTAMP(timezone=True),
-    server_default=func.now(),
-    default=lambda: datetime.now(timezone.utc),
-    nullable=False  # 👈 no más nulls
+    #Create AT
+    created_at = Column(TIMESTAMP(timezone=True),server_default=func.now(),default=lambda: datetime.now(timezone.utc),nullable=False) # 👈 no más nulls
     tecnico= relationship("Trabajo", back_populates="registros")
     semana = relationship("SemanaTecnico", back_populates="registros")
 
