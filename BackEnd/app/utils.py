@@ -218,24 +218,22 @@ def estilizar_excel(output, df, dfResultado, fila_inicio):
         ("6A5ACD", "FFFFFF"),  # TOTAL PARTS
         ("FF8C00", "FFFFFF"),  # AVERAGE SALES
     ]
-
     for i, (bg, fg) in enumerate(colores_resultados):
-        fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
-        font = Font(bold=True, color=fg)
-        fila_excel = inicio_tabla2 + 1 + i
-        for col in range(1, 3):
-            cell = ws.cell(row=fila_excel, column=col)
-            cell.fill = fill
-            cell.font = font
+            fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
+            font = Font(bold=True, color=fg)
+            fila_excel = inicio_tabla2 + 1 + i
+            for col in range(1, 3):
+                cell = ws.cell(row=fila_excel, column=col)
+                cell.fill = fill
+                cell.font = font
 
     for i in range(len(dfResultado)):
+        if i == 0:  # TOTAL JOBS → número normal, sin formato moneda
+            continue
         ws.cell(row=inicio_tabla2 + 1 + i, column=2).number_format = fmt_moneda
 
     # =========================
     # BALANCED TECH — columna dinámica a la derecha del TOTAL
-    # =========================
-    # Buscar columna TOTAL directamente en el header del worksheet
-# =========================
     # ALINEACIÓN GENERAL
     # =========================
     alineacion = Alignment(horizontal="center", vertical="center")
