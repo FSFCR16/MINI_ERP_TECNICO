@@ -129,7 +129,7 @@ export function useTrabajosActions({ openError, openModal, closeModal, pedirConf
 
         setGuardando(true)
         try {
-            await Promise.all(reales.map(t => actualizarTrabajo(t.id, t)))
+            await Promise.all(reales.map(t => actualizarTrabajo(t.id, t))) // ← esto está bien para pocos registros
             confirmarGuardado()
         } catch (err) {
             console.error("Error guardando:", err)

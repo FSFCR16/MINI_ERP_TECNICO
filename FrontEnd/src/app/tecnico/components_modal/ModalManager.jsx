@@ -1,3 +1,4 @@
+// ModalManager.jsx
 import { Fragment } from "react"
 import { DialogPanel, Transition, Dialog } from '@headlessui/react'
 import { ContentList } from './content_list.jsx'
@@ -5,6 +6,7 @@ import { ContentNoList } from './content_noList.jsx'
 import { ModalHistorial } from './contentModalHistorial.jsx'
 import { ModalAutoMessage } from './messageModal.jsx'
 import { ModalCamposFaltantes } from './modalCamposFatantes.jsx'
+import { ContentJobDuplicado } from "./ContentJobDuplicado.jsx"
 import { getModalEntry } from './config_modal.jsx'
 
 export function ModalManager({
@@ -24,6 +26,8 @@ export function ModalManager({
     setCamposFaltantes,
     camposFaltantes,
     resultadoParcial,
+    // ✅ nuevo — para job duplicado
+    confirmacionRef,
 }) {
     const entrada = getModalEntry(modal.tipo, {
         finalizarTabla,
@@ -99,6 +103,20 @@ export function ModalManager({
                                     resultadoParcial={resultadoParcial}
                                     setIsOpen={closeModal}
                                     procesarMensaje={procesarMensaje}
+                                />
+                            )}
+                            {/* ✅ render 6 — job duplicado */}
+                            {modal.tipo === "JOB_DUPLICADO" && modal.data && (
+                                <ContentJobDuplicado
+                                    tecnico={modal.data}
+                                    onConfirmar={() => {
+                                        confirmacionRef.current?.(true)
+                                        closeModal()
+                                    }}
+                                    onCancelar={() => {
+                                        confirmacionRef.current?.(false)
+                                        closeModal()
+                                    }}
                                 />
                             )}
                         </DialogPanel>

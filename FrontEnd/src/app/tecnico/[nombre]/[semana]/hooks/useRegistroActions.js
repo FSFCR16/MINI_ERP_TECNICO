@@ -1,12 +1,15 @@
+// useRegistroActions.js
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import {
     envioTablaDB,
     getRegistrosPrevios,
     eliminarRegistrosDb,
     exportarExcelDBPost,
-    updateRegistro
+    updateRegistro,
+    validarJobDuplicado,
+    bulkUpdateRegistros
 } from "../../../../../Services/tencicosServices.js"
-import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod,actualizarPorcentajeCC } from "../../../../../Utils/api.js"
+import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod, actualizarPorcentajeCC } from "../../../../../Utils/api.js"
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js'
 import { columnasBase } from '../tableRow/columnasBase.jsx'
 import { useRevertible } from '../../../../../app/hooks/useRevertible.js'
@@ -28,6 +31,8 @@ export function useRegistroActions({
 }) {
     const [elementosAEliminar, setElementosAEliminar] = useState([])
     const [guardando, setGuardando] = useState(false)
+
+    const confirmacionRef = useRef(null)
 
     const openModalRef = useRef(openModal)
     useEffect(() => { openModalRef.current = openModal }, [openModal])
@@ -67,7 +72,7 @@ export function useRegistroActions({
     const handleBtnAgregar = async () => {
         const rowLimpio = { ...rowData }
 
-        // ✅ Convertir strings vacíos a 0 en campos numéricos
+        // Convertir strings vacíos a 0 en campos numéricos
         const camposNumericos = [
             "valor_servicio", "valor_tarjeta", "valor_efectivo",
             "partes_gil", "partes_tecnico", "tech",
@@ -94,6 +99,25 @@ export function useRegistroActions({
             return
         }
 
+        // ✅ Validar job_name duplicado antes de guardar
+        if (rowCopy.job_name) {
+            console.log("Validando job_name:", JSON.stringify(rowCopy.job_name)) // ✅ agrega esto
+            try {
+                const { existe, tecnico } = await validarJobDuplicado(rowCopy.job_name)
+                console.log("Respuesta validación:", { existe, tecnico }) // ✅ y esto
+                if (existe) {
+                    const confirmo = await new Promise((resolve) => {
+                        confirmacionRef.current = resolve
+                        openModal("JOB_DUPLICADO", tecnico)
+                    })
+                    if (!confirmo) return
+                }
+            } catch (err) {
+                console.error("Error validando job duplicado:", err)
+                // Si falla la validación, dejamos continuar para no bloquear al usuario
+            }
+        }
+
         setListRegistros(prev => [rowCopy, ...prev])
         setRow(procesarDatosTecnico(data[0]))
 
@@ -115,6 +139,7 @@ export function useRegistroActions({
             openModal("ERROR_GUARDADO")
         }
     }
+
     const eliminarSeleccionados = async () => {
         setListRegistros(listRegistro.filter(d => !elementosAEliminar.includes(d)))
         await eliminarRegistrosDb(elementosAEliminar.filter(d => d.id_registro))
@@ -173,21 +198,22 @@ export function useRegistroActions({
         }
     }
 
-    const actualizarCeldaRegistro = (rowIndex, colKey, nuevoValor) => {
-        marcarCambio(listRegistroRef.current[rowIndex]?.id_registro)  // ✅ usa el ref antes del update
+    const actualizarCeldaRegistro = (id_registro, colKey, nuevoValor) => {
+        marcarCambio(id_registro)
         setListRegistros(prev => {
             const copia = [...prev]
-            const filaActual = copia[rowIndex]
+            const realIndex = copia.findIndex(r => r.id_registro === id_registro)
+            if (realIndex === -1) return prev
+
+            const filaActual = copia[realIndex]
             let filaActualizada = { ...filaActual, [colKey]: nuevoValor }
 
-            // Si tipo_pago no es MIXTO, limpiar valor_tarjeta y valor_efectivo
             if (colKey === "tipo_pago" && nuevoValor.toLowerCase() !== "mixto") {
                 filaActualizada.valor_tarjeta = 0
                 filaActualizada.valor_efectivo = 0
             }
 
-            // Si editan valor_tarjeta o valor_efectivo y no es MIXTO, ignorar
-            if ((colKey === "valor_tarjeta" || colKey === "valor_efectivo") && 
+            if ((colKey === "valor_tarjeta" || colKey === "valor_efectivo") &&
                 filaActualizada.tipo_pago?.toLowerCase() !== "mixto") {
                 filaActualizada[colKey] = 0
             }
@@ -216,14 +242,14 @@ export function useRegistroActions({
                 "valor_servicio", "valor_efectivo", "valor_tarjeta",
                 "partes_gil", "partes_tecnico", "tech", "tipo_pago",
                 "aplica_dolar_empresa", "adicional_dolar",
-                "porcentaje_tecnico", "porcentaje_cc","is_cash" 
+                "porcentaje_tecnico", "porcentaje_cc", "is_cash"
             ]
 
             const filaFinal = camposQueRecalculan.includes(colKey)
                 ? procesarData({ ...filaActualizada })
                 : filaActualizada
 
-            copia[rowIndex] = filaFinal
+            copia[realIndex] = filaFinal
             return copia
         })
     }
@@ -238,9 +264,9 @@ export function useRegistroActions({
 
         setGuardando(true)
         try {
-            await Promise.all(
-                registrosConId.map(r => updateRegistro(r.id_registro, r))
-            )
+            // ✅ un solo request con todos los registros
+            const payload = registrosConId.map(r => ({ ...r, id: r.id_registro }))
+            await bulkUpdateRegistros(payload)
             confirmarGuardado()
         } catch (err) {
             console.error("Error guardando:", err)
@@ -304,6 +330,7 @@ export function useRegistroActions({
         guardarCambios,
         revertirCambios,
         haycambiosPendientes,
-        guardando
+        guardando,
+        confirmacionRef,  // ✅ expuesto para ModalManager
     }
 }

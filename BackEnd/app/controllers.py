@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Trabajo, SemanaTecnico,registrosSchemma
 from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel
-from app.schemmas import TrabajoSchema,TecnicoRequest,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
+from app.schemmas import TrabajoSchema,TecnicoRequest,UpdateRegistroSchema,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
 from datetime import date, timedelta
 from typing import List
 from sqlalchemy import func, desc
@@ -602,3 +602,48 @@ def eliminarTrabajo(id: int, db: Session):
     db.commit()
 
     return {"message": "Eliminado correctamente"}
+
+
+def validarJobDuplicado(job_name: str, db: Session):
+    job_name = job_name.strip().upper()
+    print(f"Buscando job_name: '{job_name}'")  # ✅
+
+    registro = db.query(registrosSchemma).filter(
+        func.upper(func.trim(registrosSchemma.job_name)) == job_name
+    ).first()
+    print(f"Resultado: {registro}")  # ✅
+    print(registro)
+    if not registro:
+        return { "existe": False, "tecnico": None }
+
+    return {
+        "existe": True,
+        "tecnico": {
+            "nombre": registro.nombre,
+            "job": registro.job,
+            "job_name": registro.job_name,
+            "semana": registro.semana.semana,  # ✅ label directo por relación
+            "fecha_inicio": str(registro.semana.fecha_inicio),
+            "fecha_fin": str(registro.semana.fecha_fin),
+            "total": registro.total,
+        }
+    }
+
+def bulkUpdateRegistros(registros: List[UpdateRegistroSchema], db: Session):
+    print("REGISTROS RECIBIDOS:", registros)  # ✅
+    try:
+        for item in registros:
+            registro = db.query(registrosSchemma).filter(
+                registrosSchemma.id == item.id
+            ).first()
+            if not registro:
+                continue
+            for key, value in item.dict(exclude_unset=True).items():
+                if key == "id":
+                    continue
+                setattr(registro, key, value)
+        db.commit()
+        return {"message": "Registros actualizados correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

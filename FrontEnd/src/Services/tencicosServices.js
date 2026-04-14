@@ -56,3 +56,9 @@ export const actualizarTrabajo = (id, data) =>
 
 export const eliminarTrabajo = (id) =>
     api.delete(`/api/trabajos/${id}`)
+
+export const validarJobDuplicado = (job_name) =>
+    api.get(`/api/validar-job/${encodeURIComponent(job_name)}`)
+
+export const bulkUpdateRegistros = (registros) =>
+    api.put("/api/bulk-update-registros", registros)

@@ -20,7 +20,7 @@ export function BuscadorRegistros({ registros, onFiltrar }) {
                 .toLowerCase()
             return palabras.every(p => textoFila.includes(p))
         })
-        onFiltrar(filtrados)
+        onFiltrar(new Set(filtrados.map(r => r.id_registro)))
     }
 
     const limpiar = () => {

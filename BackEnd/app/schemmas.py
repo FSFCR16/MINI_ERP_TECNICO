@@ -94,6 +94,7 @@ class EnvioRegistrosBody(BaseModel):
     registros: List[SemanaTecnicoSchemaFront]
 
 class UpdateRegistroSchema(BaseModel):
+    id: Optional[int] = None
     job: Optional[str] = None
     job_name: Optional[str] = None
     valor_efectivo: Optional[float] = None
@@ -118,3 +119,4 @@ class TrabajoCreateSchema(BaseModel):
     porcentaje_cc: float
     cargo_sabados: float
     porcentaje_adicional_empresa: float
+

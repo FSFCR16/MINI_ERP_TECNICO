@@ -31,9 +31,10 @@ export function TablaRegistros({ state, handlers, nav }) {
         moverseEnTablaGeneral,
     } = nav
 
-    const [registrosFiltrados, setRegistrosFiltrados] = useState(null)
-    const listaVisible = registrosFiltrados ?? listRegistro
-
+    const [idsFiltrados, setIdsFiltrados] = useState(null)
+    const listaVisible = idsFiltrados
+        ? listRegistro.filter(r => idsFiltrados.has(r.id_registro))
+        : listRegistro
     return (
         <section className="w-full flex-1 min-h-0 overflow-hidden rounded-2xl shadow-xl bg-white/70 backdrop-blur-xl border border-white/40 flex flex-col">
 
@@ -52,7 +53,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                     <div className="flex-1 max-w-xs">
                         <BuscadorRegistros
                             registros={listRegistro}
-                            onFiltrar={setRegistrosFiltrados}
+                            onFiltrar={setIdsFiltrados}
                         />
                     </div>
                 )}
@@ -107,8 +108,6 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <tbody>
                         {listaVisible.map((row, indexrow) => {
-                            const indexReal = listRegistro.indexOf(row)
-
                             return (
                                 <tr
                                     key={indexrow}
@@ -145,7 +144,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                                                     <input
                                                         type="checkbox"
                                                         checked={!!value}
-                                                        onChange={(e) => actualizarCeldaRegistro(indexReal, col.key, e.target.checked)}
+                                                        onChange={(e) => actualizarCeldaRegistro(row.id_registro, col.key, e.target.checked)}
                                                         className="w-4 h-4 cursor-pointer accent-indigo-500"
                                                     />
 
@@ -158,7 +157,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                                                         onBlur={(e) => {
                                                             if (guardandoRef.current) { guardandoRef.current = false; return }
                                                             const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
-                                                            actualizarCeldaRegistro(indexReal, col.key, val)
+                                                            actualizarCeldaRegistro(row.id_registro, col.key, val)
                                                             setCeldaEditando(null)
                                                         }}
                                                         onKeyDown={(e) => {
@@ -172,7 +171,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                                                                 e.preventDefault()
                                                                 guardandoRef.current = true
                                                                 const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
-                                                                actualizarCeldaRegistro(indexReal, col.key, val)
+                                                                actualizarCeldaRegistro(row.id_registro, col.key, val)
                                                                 setCeldaEditando(null)
                                                                 setTimeout(() => {
                                                                     celdasTablaRef.current[`${indexrow + 1}-${indexCol}`]?.focus()
@@ -183,7 +182,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                                                                 e.preventDefault()
                                                                 guardandoRef.current = true
                                                                 const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
-                                                                actualizarCeldaRegistro(indexReal, col.key, val)
+                                                                actualizarCeldaRegistro(row.id_registro, col.key, val)
                                                                 setCeldaEditando(null)
                                                                 setTimeout(() => {
                                                                     celdasTablaRef.current[`${indexrow}-${indexCol + 1}`]?.focus()

@@ -45,6 +45,9 @@ export function useTecnicoData(nombre, semana) {
                         t => t.job.replace(/\s+/g, "") === dato.job.replace(/\s+/g, "")
                     )
                     if (!tecnicoMatch) return []
+                    
+                    console.log("dato.tipo_pago:", JSON.stringify(dato.tipo_pago)) // ✅
+                    
                     return procesarDatosTecnico([tecnicoMatch], dato)
                 })
                 

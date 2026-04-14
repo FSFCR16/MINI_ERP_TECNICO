@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
+from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
 from app.schemmas import TrabajoCreateSchema,TrabajoSchema,UpdateRegistroSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
@@ -135,3 +135,14 @@ async def deleteTrabajo(
     db: Session = Depends(get_db)
 ):
     return eliminarTrabajo(id, db)
+
+@router.get("/validar-job/{job_name}")
+def validarJobRoute(job_name: str, db: Session = Depends(get_db)):
+    return validarJobDuplicado(job_name, db)
+
+@router.put("/bulk-update-registros")
+async def bulkUpdateRegistrosRoute(
+    registros: List[UpdateRegistroSchema],
+    db: Session = Depends(get_db)
+):
+    return bulkUpdateRegistros(registros, db)

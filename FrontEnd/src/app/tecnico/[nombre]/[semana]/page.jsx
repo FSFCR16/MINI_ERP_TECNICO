@@ -73,6 +73,7 @@ export default function Page() {
         guardarCambios,
         revertirCambios,
         haycambiosPendientes,
+        confirmacionRef,
     } = useRegistroActions({
         nombre, semana, data, rowData, setRow,
         listRegistro, setListRegistros,
@@ -199,6 +200,7 @@ export default function Page() {
                 setCamposFaltantes={setCamposFaltantes}
                 camposFaltantes={camposFaltantes}
                 resultadoParcial={resultadoParcial}
+                confirmacionRef={confirmacionRef} 
             />
         </>
     )
