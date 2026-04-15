@@ -133,7 +133,7 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al insertar registros: {str(e)}")
 
-def obtenerRegistrosSemana(semana: str, nombre: str, db: Session):
+def obtenerRegistrosSemana( nombre: str, semana: str, db: Session):
 
     semanaDB = db.query(SemanaTecnico).filter(
         SemanaTecnico.semana == semana
