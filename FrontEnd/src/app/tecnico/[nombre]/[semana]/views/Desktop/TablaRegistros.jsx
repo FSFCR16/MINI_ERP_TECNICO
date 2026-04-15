@@ -1,17 +1,20 @@
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { formatearNumero } from '../../../../../../Utils/api.js'
 import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 import { useSeleccionStore } from '../../../../../../app/stores/useClipboardStore.js'
 
-export const FilaRegistro = memo(function FilaRegistro({
+// 1. React.memo envolviendo el componente para evitar renders innecesarios
+const FilaRegistro = memo(function FilaRegistro({
     row,
     indexrow,
     columnasTablaGeneral,
-    marcadoParaEliminar,
-    estaGuardando,
+    marcadoParaEliminar, // <- Ahora es un booleano, no el array completo
+    estaGuardando,       // <- Ahora es un booleano, no el objeto completo
+    activeCell,
     actualizarCeldaRegistro,
     toggleSeleccion,
+    setActiveCell,
     moverseEnTablaGeneral,
     celdasTablaRef,
     guardandoRef,
@@ -19,23 +22,24 @@ export const FilaRegistro = memo(function FilaRegistro({
     extenderDrag,
     handleContextMenu,
 }) {
-    const rowId = row.id_registro ?? row.id;
+    // console.log(`FilaRegistro render fila ${indexrow}`) // Puedes descomentar para probar
 
+    // 2. Zustand al rescate: La fila lee su propia selección
     const esSeleccionada = useSeleccionStore(
-        useCallback(s => s.seleccion.has(rowId), [rowId])
+        useCallback(s => s.seleccion.has(row.id_registro), [row.id_registro])
     )
 
+    // 3. Estado LOCAL para la edición: Ya no depende de TablaRegistros
     const [columnaEditando, setColumnaEditando] = useState(null)
-    const [celdaActivaLocal, setCeldaActivaLocal] = useState(null)
 
     return (
         <tr
+            // Eventos del ratón para el Drag & Select
             onMouseDown={(e) => {
-                if (e.button !== 0) return
-                if (e.target.tagName === 'INPUT' || e.target.type === 'checkbox') return
-                iniciarDrag(rowId, e)
+                if (e.target.type === 'checkbox') return
+                iniciarDrag(row.id_registro)
             }}
-            onMouseEnter={() => extenderDrag(rowId)}
+            onMouseEnter={() => extenderDrag(row.id_registro)}
             onContextMenu={handleContextMenu}
             className={`
                 transition duration-200 hover:bg-white/40 select-none
@@ -72,7 +76,7 @@ export const FilaRegistro = memo(function FilaRegistro({
                             <input
                                 type="checkbox"
                                 checked={!!value}
-                                onChange={(e) => actualizarCeldaRegistro(rowId, col.key, e.target.checked)}
+                                onChange={(e) => actualizarCeldaRegistro(row.id_registro, col.key, e.target.checked)}
                                 className="w-4 h-4 cursor-pointer accent-indigo-500"
                             />
                         ) : columnaEditando === indexCol ? (
@@ -84,7 +88,7 @@ export const FilaRegistro = memo(function FilaRegistro({
                                 onBlur={(e) => {
                                     if (guardandoRef.current) { guardandoRef.current = false; return }
                                     const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
-                                    actualizarCeldaRegistro(rowId, col.key, val)
+                                    actualizarCeldaRegistro(row.id_registro, col.key, val)
                                     setColumnaEditando(null)
                                 }}
                                 onKeyDown={(e) => {
@@ -94,15 +98,25 @@ export const FilaRegistro = memo(function FilaRegistro({
                                         setColumnaEditando(null)
                                         return
                                     }
-                                    if (e.key === "Enter" || e.key === "Tab") {
+                                    if (e.key === "Enter") {
                                         e.preventDefault()
                                         guardandoRef.current = true
                                         const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
-                                        actualizarCeldaRegistro(rowId, col.key, val)
+                                        actualizarCeldaRegistro(row.id_registro, col.key, val)
                                         setColumnaEditando(null)
                                         setTimeout(() => {
-                                            const nextCell = e.key === "Enter" ? `${indexrow + 1}-${indexCol}` : `${indexrow}-${indexCol + 1}`
-                                            celdasTablaRef.current[nextCell]?.focus()
+                                            celdasTablaRef.current[`${indexrow + 1}-${indexCol}`]?.focus()
+                                        }, 0)
+                                        return
+                                    }
+                                    if (e.key === "Tab") {
+                                        e.preventDefault()
+                                        guardandoRef.current = true
+                                        const val = Number.isFinite(value) ? Number(e.target.value) : e.target.value
+                                        actualizarCeldaRegistro(row.id_registro, col.key, val)
+                                        setColumnaEditando(null)
+                                        setTimeout(() => {
+                                            celdasTablaRef.current[`${indexrow}-${indexCol + 1}`]?.focus()
                                         }, 0)
                                         return
                                     }
@@ -121,7 +135,7 @@ export const FilaRegistro = memo(function FilaRegistro({
                                     moverseEnTablaGeneral(e, indexrow, indexCol)
                                 }}
                                 ref={el => { celdasTablaRef.current[cellKey] = el }}
-                                onClick={() => setCeldaActivaLocal(celdaActivaLocal === indexCol ? null : indexCol)}
+                                onClick={() => setActiveCell(activeCell === cellKey ? null : cellKey)}
                                 className={`flex justify-start overflow-hidden whitespace-nowrap text-ellipsis text-[12px] ${
                                     esEditable ? "cursor-pointer" : "cursor-default"
                                 } ${
@@ -133,7 +147,7 @@ export const FilaRegistro = memo(function FilaRegistro({
                                 }`}
                             >
                                 <div className="flex items-center gap-1">
-                                    <span className={`inline-block ${celdaActivaLocal === indexCol ? "animate-scrollText" : "truncate"}`}>
+                                    <span className={`inline-block ${activeCell === cellKey ? "animate-scrollText" : "truncate"}`}>
                                         {Number.isFinite(value) ? formatearNumero(value) : value}
                                     </span>
                                     {estaGuardando && (
@@ -151,6 +165,12 @@ export const FilaRegistro = memo(function FilaRegistro({
 
 export function TablaRegistros({ state, handlers, nav }) {
 
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+        setIsClient(true)
+    }, [])
+
     const {
         listRegistro,
         elementosAEliminar,
@@ -160,6 +180,7 @@ export function TablaRegistros({ state, handlers, nav }) {
         guardando,
         hayClipboard,
         clipboardRegistros,
+        // celdaEditando <- ELIMINADO de aquí, ya no lo necesita el padre
     } = state
 
     const {
@@ -169,6 +190,7 @@ export function TablaRegistros({ state, handlers, nav }) {
         actualizarCeldaRegistro,
         setActiveCell,
         setActiveHeader,
+        // setCeldaEditando, <- ELIMINADO de aquí
         iniciarDrag,
         extenderDrag,
         copiar,
@@ -185,15 +207,22 @@ export function TablaRegistros({ state, handlers, nav }) {
 
     const haySeleccion = useSeleccionStore(s => s.seleccion.size > 0)
     const numSeleccionados = useSeleccionStore(s => s.seleccion.size)
+
     const [idsFiltrados, setIdsFiltrados] = useState(null)
     const [contextMenu, setContextMenu] = useState(null)
     const contextMenuRef = useRef(null)
     const [toastCopiado, setToastCopiado] = useState(false)
     const toastTimer = useRef(null)
 
-    const listaVisible = idsFiltrados
-        ? listRegistro.filter(r => idsFiltrados.has(r.id_registro))
-        : listRegistro
+    const listaVisible = useMemo(() => {
+        return idsFiltrados
+            ? listRegistro.filter(r => idsFiltrados.has(r.id_registro))
+            : listRegistro
+    }, [listRegistro, idsFiltrados])
+
+    const idsEliminarSet = useMemo(() => {
+        return new Set(elementosAEliminar.map(e => e.id_registro))
+    }, [elementosAEliminar])
 
     useEffect(() => {
         if (!contextMenu) return
@@ -227,17 +256,35 @@ export function TablaRegistros({ state, handlers, nav }) {
     useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
     // ── BLINDAJE DE REFERENCIAS ──────────────────────────────────────
-    const propFunctionsRef = useRef({ iniciarDrag, extenderDrag, actualizarCeldaRegistro, toggleSeleccion, moverseEnTablaGeneral })
-
-    useEffect(() => {
-        propFunctionsRef.current = { iniciarDrag, extenderDrag, actualizarCeldaRegistro, toggleSeleccion, moverseEnTablaGeneral }
+    const propFunctionsRef = useRef({
+        iniciarDrag,
+        extenderDrag,
+        actualizarCeldaRegistro,
+        toggleSeleccion,
+        moverseEnTablaGeneral
     })
 
-    const stableIniciarDrag      = useCallback((id, e) => propFunctionsRef.current.iniciarDrag(id, e), [])
-    const stableExtenderDrag     = useCallback((id, e) => propFunctionsRef.current.extenderDrag(id, e), [])
-    const stableActualizarCelda  = useCallback((id, key, val) => propFunctionsRef.current.actualizarCeldaRegistro(id, key, val), [])
-    const stableToggleSeleccion  = useCallback((row) => propFunctionsRef.current.toggleSeleccion(row), [])
-    const stableMoverse          = useCallback((e, r, c) => propFunctionsRef.current.moverseEnTablaGeneral(e, r, c), [])
+    useEffect(() => {
+        propFunctionsRef.current = {
+            iniciarDrag,
+            extenderDrag,
+            actualizarCeldaRegistro,
+            toggleSeleccion,
+            moverseEnTablaGeneral
+        }
+    }, [
+        iniciarDrag,
+        extenderDrag,
+        actualizarCeldaRegistro,
+        toggleSeleccion,
+        moverseEnTablaGeneral
+    ])
+
+    const stableIniciarDrag = useCallback((id, e) => propFunctionsRef.current.iniciarDrag(id, e), [])
+    const stableExtenderDrag = useCallback((id, e) => propFunctionsRef.current.extenderDrag(id, e), [])
+    const stableActualizarCelda = useCallback((id, key, val) => propFunctionsRef.current.actualizarCeldaRegistro(id, key, val), [])
+    const stableToggleSeleccion = useCallback((row) => propFunctionsRef.current.toggleSeleccion(row), [])
+    const stableMoverse = useCallback((e, r, c) => propFunctionsRef.current.moverseEnTablaGeneral(e, r, c), [])
     // ────────────────────────────────────────────────────────────────
 
     return (
@@ -300,7 +347,6 @@ export function TablaRegistros({ state, handlers, nav }) {
             </div>
 
             {/* ── TABLA ─────────────────────────────────────────────── */}
-            {/* onContextMenu aquí cubre tanto filas con datos como tbody vacío */}
             <div
                 ref={scrollRef}
                 className="w-full flex-1 overflow-auto custom-scroll"
@@ -341,7 +387,7 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <tbody>
                         {listaVisible.map((row, indexrow) => {
-                            const marcadoParaEliminar = elementosAEliminar.some(e => e.id_registro === row.id_registro)
+                            const marcadoParaEliminar = idsEliminarSet.has(row.id_registro)
                             const estaGuardando = !!guardando?.[indexrow]
 
                             return (
@@ -352,11 +398,13 @@ export function TablaRegistros({ state, handlers, nav }) {
                                     columnasTablaGeneral={columnasTablaGeneral}
                                     marcadoParaEliminar={marcadoParaEliminar}
                                     estaGuardando={estaGuardando}
+                                    activeCell={activeCell}
                                     celdasTablaRef={celdasTablaRef}
                                     guardandoRef={guardandoRef}
                                     handleContextMenu={handleContextMenu}
                                     actualizarCeldaRegistro={stableActualizarCelda}
                                     toggleSeleccion={stableToggleSeleccion}
+                                    setActiveCell={setActiveCell}
                                     moverseEnTablaGeneral={stableMoverse}
                                     iniciarDrag={stableIniciarDrag}
                                     extenderDrag={stableExtenderDrag}
@@ -368,7 +416,7 @@ export function TablaRegistros({ state, handlers, nav }) {
             </div>
 
             {/* ── CONTEXT MENU — montado en document.body via portal ── */}
-            {contextMenu && createPortal(
+            {isClient && contextMenu && createPortal(
                 <div
                     ref={contextMenuRef}
                     style={{
@@ -379,7 +427,6 @@ export function TablaRegistros({ state, handlers, nav }) {
                     }}
                     className="bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl py-1.5 min-w-[180px] overflow-hidden"
                 >
-                    {/* Copiar */}
                     <button
                         onClick={() => {
                             if (!haySeleccion) return
@@ -413,7 +460,6 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <div className="mx-3 my-1 border-t border-slate-100" />
 
-                    {/* Pegar */}
                     <button
                         onClick={() => { if (!hayClipboard) return; pegar(); setContextMenu(null) }}
                         disabled={!hayClipboard}
@@ -445,8 +491,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                 document.body
             )}
 
-            {/* ── TOAST — también en portal para evitar el mismo problema ── */}
-            {createPortal(
+            {isClient && createPortal(
                 <div
                     style={{ zIndex: 999999 }}
                     className={`
