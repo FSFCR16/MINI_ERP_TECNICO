@@ -83,8 +83,8 @@ async def exporToExcelRoute(registros: List[SemanaTecnicoSchemaFront], nombre: s
 
 
 @router.get("/obtenerRegistros/{nombre}/{semana}")
-async def obtenerRegistrosRoute(semana: str, nombre: str, db: Session = Depends(get_db)):
-    return obtenerRegistrosSemana(semana, nombre, db)
+async def obtenerRegistrosRoute(nombre: str, semana: str, db: Session = Depends(get_db)):
+    return obtenerRegistrosSemana(nombre,semana, db)
 
 
 @router.delete("/eliminarRegistrosSelecionados")
