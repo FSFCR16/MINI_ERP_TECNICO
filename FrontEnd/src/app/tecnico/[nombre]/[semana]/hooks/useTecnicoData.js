@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
     confirmarTecnico,
     ValidarSemanaTecnico,
@@ -18,11 +18,22 @@ export function useTecnicoData(nombre, semana) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // ✅ valor estable (evita re-renders innecesarios)
-    const semanaStr = useMemo(() => String(semana || ""), [semana]);
+    // ✅ valor estable real
+    const semanaStr = typeof semana === "string" ? semana : String(semana || "");
+
+    // ✅ evitar llamadas duplicadas (Strict Mode / renders innecesarios)
+    const prevParams = useRef({ nombre: null, semana: null });
 
     useEffect(() => {
         if (!nombre || !semanaStr) return;
+
+        // 🚫 evitar re-ejecución innecesaria
+        if (
+            prevParams.current.nombre === nombre &&
+            prevParams.current.semana === semanaStr
+        ) return;
+
+        prevParams.current = { nombre, semana: semanaStr };
 
         let isMounted = true;
 
@@ -79,16 +90,21 @@ export function useTecnicoData(nombre, semana) {
 
     }, [nombre, semanaStr]);
 
-    // ✅ Procesamiento pesado MEMOIZADO (clave para evitar violation)
+    // ✅ OPTIMIZACIÓN PRO: O(n) en vez de O(n²)
     const listRegistro = useMemo(() => {
         if (!rawRegistros.length || !data.length) return [];
 
+        // 🔹 crear mapa para búsquedas rápidas
+        const dataMap = new Map(
+            data.map(t => [
+                (t.job || "").replace(/\s+/g, ""),
+                t
+            ])
+        );
+
         return rawRegistros.flatMap(dato => {
-            const tecnicoMatch = data.find(
-                t =>
-                    (t.job || "").replace(/\s+/g, "") ===
-                    (dato.job || "").replace(/\s+/g, "")
-            );
+            const key = (dato.job || "").replace(/\s+/g, "");
+            const tecnicoMatch = dataMap.get(key);
 
             return tecnicoMatch
                 ? procesarDatosTecnico([tecnicoMatch], dato)
