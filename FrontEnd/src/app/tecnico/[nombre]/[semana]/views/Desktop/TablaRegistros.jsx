@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { formatearNumero } from '../../../../../../Utils/api.js'
 import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 import { useSeleccionStore } from '../../../../../../app/stores/useClipboardStore.js'
@@ -251,7 +252,6 @@ export function TablaRegistros({ state, handlers, nav }) {
                             {listaVisible.length}{listaVisible.length !== listRegistro.length ? `/${listRegistro.length}` : ""}
                         </span>
                     )}
-                    {/* Indicador de selección activa */}
                     {haySeleccion && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200/60 flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
@@ -267,7 +267,6 @@ export function TablaRegistros({ state, handlers, nav }) {
                 )}
 
                 <div className="flex items-center gap-2 shrink-0">
-                    {/* Botón Pegar — rediseñado */}
                     {hayClipboard && (
                         <button
                             onClick={pegar}
@@ -301,7 +300,12 @@ export function TablaRegistros({ state, handlers, nav }) {
             </div>
 
             {/* ── TABLA ─────────────────────────────────────────────── */}
-            <div ref={scrollRef} className="w-full flex-1 overflow-auto custom-scroll">
+            {/* onContextMenu aquí cubre tanto filas con datos como tbody vacío */}
+            <div
+                ref={scrollRef}
+                className="w-full flex-1 overflow-auto custom-scroll"
+                onContextMenu={handleContextMenu}
+            >
                 <table className="w-full border-collapse table-fixed">
                     <thead className="bg-white/60 backdrop-blur-md text-slate-700 sticky top-0 z-10">
                         <tr>
@@ -363,15 +367,15 @@ export function TablaRegistros({ state, handlers, nav }) {
                 </table>
             </div>
 
-            {/* ── CONTEXT MENU ──────────────────────────────────────── */}
-            {contextMenu && (
+            {/* ── CONTEXT MENU — montado en document.body via portal ── */}
+            {contextMenu && createPortal(
                 <div
                     ref={contextMenuRef}
                     style={{
                         position: "fixed",
                         top: contextMenu.y,
                         left: contextMenu.x,
-                        zIndex: 99999,          // ← bien por encima de todo
+                        zIndex: 99999,
                     }}
                     className="bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl py-1.5 min-w-[180px] overflow-hidden"
                 >
@@ -437,36 +441,40 @@ export function TablaRegistros({ state, handlers, nav }) {
                             </>
                         )}
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {/* ── TOAST ─────────────────────────────────────────────── */}
-            <div
-                style={{ zIndex: 999999 }}
-                className={`
-                    fixed bottom-8 left-1/2 -translate-x-1/2
-                    flex items-center gap-2.5
-                    bg-slate-800 text-white
-                    px-4 py-2.5 rounded-2xl shadow-2xl
-                    text-[12px] font-semibold
-                    transition-all duration-300 ease-out
-                    ${toastCopiado
-                        ? "opacity-100 translate-y-0 pointer-events-auto"
-                        : "opacity-0 translate-y-3 pointer-events-none"
+            {/* ── TOAST — también en portal para evitar el mismo problema ── */}
+            {createPortal(
+                <div
+                    style={{ zIndex: 999999 }}
+                    className={`
+                        fixed bottom-8 left-1/2 -translate-x-1/2
+                        flex items-center gap-2.5
+                        bg-slate-800 text-white
+                        px-4 py-2.5 rounded-2xl shadow-2xl
+                        text-[12px] font-semibold
+                        transition-all duration-300 ease-out
+                        ${toastCopiado
+                            ? "opacity-100 translate-y-0 pointer-events-auto"
+                            : "opacity-0 translate-y-3 pointer-events-none"
+                        }
+                    `}
+                >
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400">
+                        <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2 6l3 3 5-5" />
+                        </svg>
+                    </span>
+                    {numSeleccionados > 0
+                        ? `${numSeleccionados} registro${numSeleccionados !== 1 ? "s" : ""} copiado${numSeleccionados !== 1 ? "s" : ""}`
+                        : "Registros copiados"
                     }
-                `}
-            >
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400">
-                    <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 6l3 3 5-5" />
-                    </svg>
-                </span>
-                {numSeleccionados > 0
-                    ? `${numSeleccionados} registro${numSeleccionados !== 1 ? "s" : ""} copiado${numSeleccionados !== 1 ? "s" : ""}`
-                    : "Registros copiados"
-                }
-                <span className="text-[10px] text-slate-400 font-mono">Ctrl+V para pegar</span>
-            </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Ctrl+V para pegar</span>
+                </div>,
+                document.body
+            )}
 
         </section>
     )
