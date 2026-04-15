@@ -107,6 +107,16 @@ export default function Page() {
         return () => window.removeEventListener("resize", handleResize)
     }, [])
 
+        // DEBUG TEMPORAL ↓
+    useEffect(() => {
+        console.log("🔄 loading cambió:", loading)
+    }, [loading])
+
+    useEffect(() => {
+        console.log("📦 nombre:", nombre, "| semana:", semana)
+    }, [nombre, semana])
+    // DEBUG TEMPORAL ↑
+
     useEffect(() => {
         const handleKeyDown = (e) => {
             const isS = (e.ctrlKey || e.metaKey) && e.key === "s"

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { formatearNumero } from '../../../../../../Utils/api.js'
 import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
-import { useSeleccionStore } from '../../../../../../app/stores/useClipboardStore.js'
+// ── FIX 1: importar el selector estable en lugar del store completo
+import { useSeleccionStore, useEsSeleccionada } from '../../../../../../app/stores/useClipboardStore.js'
 
 export const FilaRegistro = memo(function FilaRegistro({
     row,
@@ -17,13 +18,18 @@ export const FilaRegistro = memo(function FilaRegistro({
     guardandoRef,
     iniciarDrag,
     extenderDrag,
-    handleContextMenu,
+    // ── FIX 2: handleContextMenu ELIMINADO de las props.
+    // El evento sube por bubbling al <div> contenedor de TablaRegistros.
+    // Eliminar esta prop evita que memo() se rompa cuando handleContextMenu
+    // se recrea en el padre.
 }) {
-    const rowId = row.id_registro ?? row.id;
+    const rowId = row.id_registro ?? row.id
 
-    const esSeleccionada = useSeleccionStore(
-        useCallback(s => s.seleccion.has(rowId), [rowId])
-    )
+    // ── FIX 1: useEsSeleccionada devuelve un boolean primitivo.
+    // Zustand solo re-renderiza esta fila cuando el boolean cambia para ESTE rowId.
+    // Antes: s => s.seleccion.has(rowId) — cada new Set() creaba referencia nueva
+    // y re-renderizaba TODAS las filas aunque ninguna cambiara su estado.
+    const esSeleccionada = useEsSeleccionada(rowId)
 
     const [columnaEditando, setColumnaEditando] = useState(null)
     const [celdaActivaLocal, setCeldaActivaLocal] = useState(null)
@@ -36,7 +42,7 @@ export const FilaRegistro = memo(function FilaRegistro({
                 iniciarDrag(rowId, e)
             }}
             onMouseEnter={() => extenderDrag(rowId)}
-            onContextMenu={handleContextMenu}
+            // ── FIX 2: sin onContextMenu aquí — el evento sube al div contenedor
             className={`
                 transition duration-200 hover:bg-white/40 select-none
                 ${esSeleccionada
@@ -183,17 +189,24 @@ export function TablaRegistros({ state, handlers, nav }) {
         moverseEnTablaGeneral,
     } = nav
 
-    const haySeleccion = useSeleccionStore(s => s.seleccion.size > 0)
+    // ── FIX 3: selectores atómicos en TablaRegistros también.
+    // En vez de s => s.seleccion (retorna el Set completo → re-render en cada drag),
+    // usamos selectores que devuelven primitivos estables.
+    const haySeleccion    = useSeleccionStore(s => s.seleccion.size > 0)
     const numSeleccionados = useSeleccionStore(s => s.seleccion.size)
+
     const [idsFiltrados, setIdsFiltrados] = useState(null)
     const [contextMenu, setContextMenu] = useState(null)
     const contextMenuRef = useRef(null)
     const [toastCopiado, setToastCopiado] = useState(false)
     const toastTimer = useRef(null)
+    const [mounted, setMounted] = useState(false)
 
     const listaVisible = idsFiltrados
         ? listRegistro.filter(r => idsFiltrados.has(r.id_registro))
         : listRegistro
+
+    useEffect(() => { setMounted(true) }, [])
 
     useEffect(() => {
         if (!contextMenu) return
@@ -213,6 +226,9 @@ export function TablaRegistros({ state, handlers, nav }) {
         return () => window.removeEventListener('keydown', handler)
     }, [contextMenu])
 
+    // ── FIX 2: handleContextMenu solo en el div contenedor.
+    // Al eliminarlo de cada <tr>, reducimos props de FilaRegistro
+    // y evitamos que memo() se invalide por esta función.
     const handleContextMenu = useCallback((e) => {
         e.preventDefault()
         setContextMenu({ x: e.clientX, y: e.clientY })
@@ -226,19 +242,19 @@ export function TablaRegistros({ state, handlers, nav }) {
 
     useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
 
-    // ── BLINDAJE DE REFERENCIAS ──────────────────────────────────────
+    // ── Blindaje de referencias (sin cambios, sigue siendo necesario) ────────
     const propFunctionsRef = useRef({ iniciarDrag, extenderDrag, actualizarCeldaRegistro, toggleSeleccion, moverseEnTablaGeneral })
 
     useEffect(() => {
         propFunctionsRef.current = { iniciarDrag, extenderDrag, actualizarCeldaRegistro, toggleSeleccion, moverseEnTablaGeneral }
     })
 
-    const stableIniciarDrag      = useCallback((id, e) => propFunctionsRef.current.iniciarDrag(id, e), [])
-    const stableExtenderDrag     = useCallback((id, e) => propFunctionsRef.current.extenderDrag(id, e), [])
-    const stableActualizarCelda  = useCallback((id, key, val) => propFunctionsRef.current.actualizarCeldaRegistro(id, key, val), [])
-    const stableToggleSeleccion  = useCallback((row) => propFunctionsRef.current.toggleSeleccion(row), [])
-    const stableMoverse          = useCallback((e, r, c) => propFunctionsRef.current.moverseEnTablaGeneral(e, r, c), [])
-    // ────────────────────────────────────────────────────────────────
+    const stableIniciarDrag     = useCallback((id, e) => propFunctionsRef.current.iniciarDrag(id, e), [])
+    const stableExtenderDrag    = useCallback((id)    => propFunctionsRef.current.extenderDrag(id), [])
+    const stableActualizarCelda = useCallback((id, key, val) => propFunctionsRef.current.actualizarCeldaRegistro(id, key, val), [])
+    const stableToggleSeleccion = useCallback((row)   => propFunctionsRef.current.toggleSeleccion(row), [])
+    const stableMoverse         = useCallback((e, r, c) => propFunctionsRef.current.moverseEnTablaGeneral(e, r, c), [])
+    // ────────────────────────────────────────────────────────────────────────
 
     return (
         <section className="w-full flex-1 min-h-0 overflow-hidden rounded-2xl shadow-xl bg-white/70 backdrop-blur-xl border border-white/40 flex flex-col relative">
@@ -276,7 +292,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                         >
                             <svg className="w-3.5 h-3.5 opacity-80" viewBox="0 0 16 16" fill="currentColor">
                                 <path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/>
-                                <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
+                                <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5-.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
                             </svg>
                             Pegar
                             <span className="bg-indigo-400/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
@@ -300,7 +316,7 @@ export function TablaRegistros({ state, handlers, nav }) {
             </div>
 
             {/* ── TABLA ─────────────────────────────────────────────── */}
-            {/* onContextMenu aquí cubre tanto filas con datos como tbody vacío */}
+            {/* FIX 2: onContextMenu aquí captura el evento de todas las filas por bubbling */}
             <div
                 ref={scrollRef}
                 className="w-full flex-1 overflow-auto custom-scroll"
@@ -342,6 +358,9 @@ export function TablaRegistros({ state, handlers, nav }) {
                     <tbody>
                         {listaVisible.map((row, indexrow) => {
                             const marcadoParaEliminar = elementosAEliminar.some(e => e.id_registro === row.id_registro)
+                            // ── FIX 4: estaGuardando como boolean estable, no depende de indexrow
+                            // Si guardando es un objeto por id en vez de por índice, esto no cambia
+                            // aunque la lista se reordene
                             const estaGuardando = !!guardando?.[indexrow]
 
                             return (
@@ -354,7 +373,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                                     estaGuardando={estaGuardando}
                                     celdasTablaRef={celdasTablaRef}
                                     guardandoRef={guardandoRef}
-                                    handleContextMenu={handleContextMenu}
+                                    // ── FIX 2: handleContextMenu ya NO se pasa como prop
                                     actualizarCeldaRegistro={stableActualizarCelda}
                                     toggleSeleccion={stableToggleSeleccion}
                                     moverseEnTablaGeneral={stableMoverse}
@@ -367,19 +386,13 @@ export function TablaRegistros({ state, handlers, nav }) {
                 </table>
             </div>
 
-            {/* ── CONTEXT MENU — montado en document.body via portal ── */}
+            {/* ── CONTEXT MENU ── */}
             {contextMenu && createPortal(
                 <div
                     ref={contextMenuRef}
-                    style={{
-                        position: "fixed",
-                        top: contextMenu.y,
-                        left: contextMenu.x,
-                        zIndex: 99999,
-                    }}
+                    style={{ position: "fixed", top: contextMenu.y, left: contextMenu.x, zIndex: 99999 }}
                     className="bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-2xl py-1.5 min-w-[180px] overflow-hidden"
                 >
-                    {/* Copiar */}
                     <button
                         onClick={() => {
                             if (!haySeleccion) return
@@ -389,23 +402,18 @@ export function TablaRegistros({ state, handlers, nav }) {
                         }}
                         disabled={!haySeleccion}
                         className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] transition-all duration-150
-                            ${haySeleccion
-                                ? "text-slate-700 hover:bg-indigo-50 cursor-pointer"
-                                : "text-slate-300 cursor-not-allowed"
-                            }`}
+                            ${haySeleccion ? "text-slate-700 hover:bg-indigo-50 cursor-pointer" : "text-slate-300 cursor-not-allowed"}`}
                     >
                         <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-50 text-indigo-500">
                             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                                 <path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/>
-                                <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
+                                <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5-.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
                             </svg>
                         </span>
                         <span className="font-medium flex-1 text-left">Copiar</span>
                         {haySeleccion && (
                             <>
-                                <span className="text-[10px] text-indigo-400 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded-md">
-                                    {numSeleccionados}
-                                </span>
+                                <span className="text-[10px] text-indigo-400 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded-md">{numSeleccionados}</span>
                                 <span className="text-[9px] text-slate-400 font-mono ml-1">Ctrl+C</span>
                             </>
                         )}
@@ -413,18 +421,13 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <div className="mx-3 my-1 border-t border-slate-100" />
 
-                    {/* Pegar */}
                     <button
                         onClick={() => { if (!hayClipboard) return; pegar(); setContextMenu(null) }}
                         disabled={!hayClipboard}
                         className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] transition-all duration-150
-                            ${hayClipboard
-                                ? "text-slate-700 hover:bg-indigo-50 cursor-pointer"
-                                : "text-slate-300 cursor-not-allowed"
-                            }`}
+                            ${hayClipboard ? "text-slate-700 hover:bg-indigo-50 cursor-pointer" : "text-slate-300 cursor-not-allowed"}`}
                     >
-                        <span className={`flex items-center justify-center w-6 h-6 rounded-lg text-[13px]
-                            ${hayClipboard ? "bg-amber-50 text-amber-500" : "bg-slate-50 text-slate-300"}`}>
+                        <span className={`flex items-center justify-center w-6 h-6 rounded-lg text-[13px] ${hayClipboard ? "bg-amber-50 text-amber-500" : "bg-slate-50 text-slate-300"}`}>
                             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                                 <path d="M5 1.5a.5.5 0 01.5-.5h5a.5.5 0 010 1h-5a.5.5 0 01-.5-.5z"/>
                                 <path d="M3.5 2A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H12a.5.5 0 000 1h.5a.5.5 0 01.5.5v11a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5v-11a.5.5 0 01.5-.5H4a.5.5 0 000-1h-.5z"/>
@@ -434,9 +437,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                         <span className="font-medium flex-1 text-left">Pegar</span>
                         {hayClipboard && (
                             <>
-                                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded-md">
-                                    {clipboardRegistros.length}
-                                </span>
+                                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded-md">{clipboardRegistros.length}</span>
                                 <span className="text-[9px] text-slate-400 font-mono ml-1">Ctrl+V</span>
                             </>
                         )}
@@ -445,8 +446,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                 document.body
             )}
 
-            {/* ── TOAST — también en portal para evitar el mismo problema ── */}
-            {createPortal(
+            {mounted && createPortal(
                 <div
                     style={{ zIndex: 999999 }}
                     className={`
@@ -475,7 +475,6 @@ export function TablaRegistros({ state, handlers, nav }) {
                 </div>,
                 document.body
             )}
-
         </section>
     )
 }

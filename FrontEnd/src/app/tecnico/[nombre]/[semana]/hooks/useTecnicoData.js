@@ -18,33 +18,23 @@ export function useTecnicoData(nombre, semana) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // ✅ valor estable real
     const semanaStr = typeof semana === "string" ? semana : String(semana || "");
 
-    // ✅ evitar llamadas duplicadas (Strict Mode / renders innecesarios)
-    const prevParams = useRef({ nombre: null, semana: null });
+    // ← prevParams y su guard ELIMINADOS
 
     useEffect(() => {
         if (!nombre || !semanaStr) return;
-
-        // 🚫 evitar re-ejecución innecesaria
-        if (
-            prevParams.current.nombre === nombre &&
-            prevParams.current.semana === semanaStr
-        ) return;
-
-        prevParams.current = { nombre, semana: semanaStr };
 
         let isMounted = true;
 
         const cargarDatos = async () => {
             setLoading(true);
             setError(null);
+            setData([]);           // limpiar estado anterior
+            setRawRegistros([]);   // limpiar estado anterior
 
             try {
-                // ── 1. Validar semana ─────────────────────
                 const semanaFecha = await ValidarSemanaTecnico(semanaStr);
-
                 if (!isMounted) return;
 
                 setSemanaFechas({
@@ -52,7 +42,6 @@ export function useTecnicoData(nombre, semana) {
                     fin: formatearFechaSemana(semanaFecha?.fecha_fin)
                 });
 
-                // ── 2. Requests en paralelo ───────────────
                 const [infoTecnico, registrosPrevios] = await Promise.all([
                     confirmarTecnico(nombre),
                     getRegistrosPrevios(nombre, semanaStr).catch(() => [])
@@ -60,14 +49,12 @@ export function useTecnicoData(nombre, semana) {
 
                 if (!isMounted) return;
 
-                // ── 3. Normalización segura ───────────────
                 const tecnicoArray = Array.isArray(infoTecnico)
                     ? infoTecnico
                     : (infoTecnico ? [infoTecnico] : []);
 
                 const registrosArray = Array.isArray(registrosPrevios)
-                    ? registrosPrevios
-                    : [];
+                    ? registrosPrevios : [];
 
                 setData(tecnicoArray);
                 setRawRegistros(registrosArray);
@@ -90,32 +77,31 @@ export function useTecnicoData(nombre, semana) {
 
     }, [nombre, semanaStr]);
 
-    // ✅ OPTIMIZACIÓN PRO: O(n) en vez de O(n²)
     const listRegistro = useMemo(() => {
-        if (!rawRegistros.length || !data.length) return [];
+        if (!rawRegistros.length) return []
+        if (!data.length) return rawRegistros
 
-        // 🔹 crear mapa para búsquedas rápidas
         const dataMap = new Map(
             data.map(t => [
                 (t.job || "").replace(/\s+/g, ""),
                 t
             ])
-        );
+        )
 
         return rawRegistros.flatMap(dato => {
-            const key = (dato.job || "").replace(/\s+/g, "");
-            const tecnicoMatch = dataMap.get(key);
-
+            const key = (dato.job || "").replace(/\s+/g, "")
+            const tecnicoMatch = dataMap.get(key)
             return tecnicoMatch
                 ? procesarDatosTecnico([tecnicoMatch], dato)
-                : [];
-        });
+                : []
+        })
 
-    }, [rawRegistros, data]);
+    }, [rawRegistros, data])
 
     return {
         data,
         listRegistro,
+        setListRegistros: setRawRegistros,
         loading,
         error,
         semanaFechas

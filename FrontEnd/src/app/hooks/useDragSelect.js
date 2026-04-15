@@ -5,14 +5,22 @@ export function useDragSelect(listaVisible) {
     const isDragging = useRef(false)
     const dragStartId = useRef(null)
     const dragCurrentId = useRef(null)
-    const anchorId = useRef(null)          // ← anchor para Shift+Click
+    const anchorId = useRef(null)
     const scrollRef = useRef(null)
     const rafRef = useRef(null)
     const listaRef = useRef(listaVisible)
     useEffect(() => { listaRef.current = listaVisible }, [listaVisible])
 
-    // ── Leer selección reactiva para exponerla ────────────────
-    const seleccionCopiable = useSeleccionStore(s => s.seleccion)
+    // ── FIX: NO suscribirse al store aquí con useSeleccionStore(s => s.seleccion).
+    // Esa línea hacía que el componente padre re-renderizara en CADA cambio de selección,
+    // incluyendo cada mousemove durante el drag. El padre re-renderizaba, pasaba props
+    // nuevas a TablaRegistros, y TablaRegistros re-renderizaba aunque nada cambiara.
+    //
+    // La solución: leer seleccionCopiable via getState() (fuera de React)
+    // solo cuando se necesita (al copiar). El hook ya no es subscriber del store.
+    const getSeleccionCopiable = useCallback(() => {
+        return useSeleccionStore.getState().seleccion
+    }, [])
 
     const calcularRango = useCallback((idA, idB) => {
         const ids = listaRef.current.map(r => r.id_registro ?? r.id)
@@ -23,9 +31,7 @@ export function useDragSelect(listaVisible) {
         return new Set(ids.slice(from, to + 1))
     }, [])
 
-    // ── Drag normal (mousedown) ───────────────────────────────
     const iniciarDrag = useCallback((id, e) => {
-        console.log("🖱️ iniciarDrag llamado", { id, isDragging: isDragging.current, shiftKey: e?.shiftKey })
         if (e?.shiftKey && anchorId.current) {
             const rango = calcularRango(anchorId.current, id)
             useSeleccionStore.setState({ seleccion: rango })
@@ -41,30 +47,25 @@ export function useDragSelect(listaVisible) {
             return
         }
 
-        // ← SOLO iniciar drag desde el mousedown original, no de filas intermedias
-        if (isDragging.current) return   // ← ESTE ES EL FIX
+        if (isDragging.current) return
 
         isDragging.current = true
         dragStartId.current = id
         dragCurrentId.current = id
         anchorId.current = id
         useSeleccionStore.setState({ seleccion: new Set([id]) })
-        console.log("✅ drag iniciado desde:", id)
     }, [calcularRango])
 
     const extenderDrag = useCallback((id) => {
-        console.log("↔️ extenderDrag llamado", { id, isDragging: isDragging.current, dragStartId: dragStartId.current })
         if (!isDragging.current) return
         if (dragCurrentId.current === id) return
         dragCurrentId.current = id
         const rango = calcularRango(dragStartId.current, id)
-        console.log("📐 rango calculado:", [...rango])
         useSeleccionStore.setState({ seleccion: rango })
     }, [calcularRango])
 
     const terminarDrag = useCallback(() => {
         if (!isDragging.current) return
-        console.log("🛑 terminarDrag — selección final:", [...useSeleccionStore.getState().seleccion])
         isDragging.current = false
         dragCurrentId.current = null
         if (rafRef.current) {
@@ -128,5 +129,7 @@ export function useDragSelect(listaVisible) {
         }
     }, [terminarDrag, handleMouseMove])
 
-    return { seleccionCopiable, iniciarDrag, extenderDrag, limpiarSeleccion, scrollRef }
+    // ── Exponer getSeleccionCopiable en vez del valor reactivo.
+    // useClipboardActions lo llama al momento de copiar (no necesita reactividad).
+    return { getSeleccionCopiable, iniciarDrag, extenderDrag, limpiarSeleccion, scrollRef }
 }

@@ -55,7 +55,10 @@ export function useRegistroActions({
             }))
             .filter(c => c.visible)
 
-    const columnasTablaEditable = useMemo(() => buildColumns(rowData, "editable"), [rowData.tipo_pago])
+    const columnasTablaEditable = useMemo(
+        () => buildColumns(rowData ?? {}, "editable"),
+        [rowData?.tipo_pago]   // ← ?. aquí también
+    )
     const columnasTablaGeneral  = useMemo(() => buildColumns({}, "general"), [])
 
     const toggleSeleccion = useCallback((dataEliminar) => {

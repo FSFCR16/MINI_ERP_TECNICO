@@ -5,7 +5,12 @@ import { procesarData } from "@/Utils/api.js"
 
 export function useClipboardActions({
     listaVisible = [],
-    seleccionCopiable, // Puede venir undefined si se desincroniza
+    // ── FIX: recibe getSeleccionCopiable (función) en vez de seleccionCopiable (valor reactivo).
+    // Antes: seleccionCopiable era s => s.seleccion del store, lo que hacía al padre
+    // re-suscribirse al store y re-renderizarse en cada drag.
+    // Ahora: getSeleccionCopiable() lee el estado en el momento de copiar (lazy read),
+    // sin crear ninguna suscripción reactiva.
+    getSeleccionCopiable,
     limpiarSeleccion,
     semana,
     idTecnico,
@@ -15,48 +20,27 @@ export function useClipboardActions({
     const { clipboardRegistros, copiarRegistros, limpiarClipboard } = useClipboardStore()
 
     const copiar = useCallback(() => {
-        const seleccion = seleccionCopiable || new Set();
-        
-        console.group("📋 COPIAR — diagnóstico")
-        console.log("seleccionCopiable:", seleccionCopiable)
-        console.log("seleccion (con fallback):", seleccion)
-        console.log("IDs en selección:", [...seleccion])
-        console.log("listaVisible.length:", listaVisible.length)
-        console.log(
-            "listaVisible IDs:",
-            listaVisible.map(r => ({ id: r.id, id_registro: r.id_registro }))
-        )
+        // Lee el Set en el momento exacto de copiar, sin necesidad de tenerlo en estado
+        const seleccion = getSeleccionCopiable?.() ?? new Set()
 
-        if (seleccion.size === 0) {
-            console.warn("⚠️ Selección vacía — no se copia nada")
-            console.groupEnd()
-            return
-        }
+        if (seleccion.size === 0) return
 
-        const rows = listaVisible.filter(r => seleccion.has(r.id_registro ?? r.id));
-        
-        console.log("rows encontrados:", rows.length)
-        console.log("rows:", rows.map(r => ({ id_registro: r.id_registro, job_name: r.job_name, total: r.total })))
-        
-        if (rows.length === 0) {
-            console.warn("⚠️ Ningún row coincide — posible desincronización de IDs")
-        }
-        
-        console.groupEnd()
-        
-        copiarRegistros(rows);
-        if (limpiarSeleccion) limpiarSeleccion();
-    }, [seleccionCopiable, listaVisible, copiarRegistros, limpiarSeleccion])
+        const rows = listaVisible.filter(r => seleccion.has(r.id_registro ?? r.id))
+        if (rows.length === 0) return
+
+        copiarRegistros(rows)
+        if (limpiarSeleccion) limpiarSeleccion()
+    }, [getSeleccionCopiable, listaVisible, copiarRegistros, limpiarSeleccion])
+
     const pegar = useCallback(async () => {
         if (!clipboardRegistros || clipboardRegistros.length === 0) return
 
         const nuevos = clipboardRegistros.map(r => {
             const procesado = procesarData({ ...r })
-            console.log(procesado)
             return {
-                id: crypto.randomUUID(),  // UUID temporal
+                id: crypto.randomUUID(),
                 id_registro: null,
-                id_tecnico: procesado.id_tecnico?? null,
+                id_tecnico: procesado.id_tecnico ?? null,
                 nombre,
                 semana,
                 job: procesado.job ?? "",
