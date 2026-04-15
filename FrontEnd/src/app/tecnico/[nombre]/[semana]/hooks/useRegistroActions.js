@@ -13,10 +13,13 @@ import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod, 
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js'
 import { columnasBase } from '../tableRow/columnasBase.jsx'
 import { useRevertible } from '../../../../../app/hooks/useRevertible.js'
+import { useDragSelect } from "@/app/hooks/useDragSelect.js"
+import { useClipboardActions } from "@/app/hooks/useClipboardActions.js"
 
 export function useRegistroActions({
     nombre,
     semana,
+    idTecnico,       // ← nuevo param requerido para clipboard
     data,
     rowData,
     setRow,
@@ -55,13 +58,13 @@ export function useRegistroActions({
     const columnasTablaEditable = useMemo(() => buildColumns(rowData, "editable"), [rowData.tipo_pago])
     const columnasTablaGeneral  = useMemo(() => buildColumns({}, "general"), [])
 
-    const toggleSeleccion = (dataEliminar) => {
+    const toggleSeleccion = useCallback((dataEliminar) => {
         setElementosAEliminar(prev =>
             prev.includes(dataEliminar)
                 ? prev.filter(e => e !== dataEliminar)
                 : [...prev, dataEliminar]
         )
-    }
+    }, [])
 
     const toggleSeleccionTodos = () => {
         setElementosAEliminar(
@@ -72,7 +75,6 @@ export function useRegistroActions({
     const handleBtnAgregar = async () => {
         const rowLimpio = { ...rowData }
 
-        // Convertir strings vacíos a 0 en campos numéricos
         const camposNumericos = [
             "valor_servicio", "valor_tarjeta", "valor_efectivo",
             "partes_gil", "partes_tecnico", "tech",
@@ -99,12 +101,9 @@ export function useRegistroActions({
             return
         }
 
-        // ✅ Validar job_name duplicado antes de guardar
         if (rowCopy.job_name) {
-            console.log("Validando job_name:", JSON.stringify(rowCopy.job_name)) // ✅ agrega esto
             try {
                 const { existe, tecnico } = await validarJobDuplicado(rowCopy.job_name)
-                console.log("Respuesta validación:", { existe, tecnico }) // ✅ y esto
                 if (existe) {
                     const confirmo = await new Promise((resolve) => {
                         confirmacionRef.current = resolve
@@ -114,7 +113,6 @@ export function useRegistroActions({
                 }
             } catch (err) {
                 console.error("Error validando job duplicado:", err)
-                // Si falla la validación, dejamos continuar para no bloquear al usuario
             }
         }
 
@@ -123,6 +121,7 @@ export function useRegistroActions({
 
         try {
             const res = await envioTablaDB([rowCopy], semana)
+            console.log("res completo:", res)
             const idReal = res?.registros?.[0]?.id
 
             if (idReal) {
@@ -198,7 +197,7 @@ export function useRegistroActions({
         }
     }
 
-    const actualizarCeldaRegistro = (id_registro, colKey, nuevoValor) => {
+    const actualizarCeldaRegistro = useCallback((id_registro, colKey, nuevoValor) => {
         marcarCambio(id_registro)
         setListRegistros(prev => {
             const copia = [...prev]
@@ -252,8 +251,8 @@ export function useRegistroActions({
             copia[realIndex] = filaFinal
             return copia
         })
-    }
-
+    }, [marcarCambio, setListRegistros])
+    
     const guardarCambios = useCallback(async () => {
         if (!haycambiosPendientes) return
         const ids = getIdsModificados()
@@ -264,7 +263,6 @@ export function useRegistroActions({
 
         setGuardando(true)
         try {
-            // ✅ un solo request con todos los registros
             const payload = registrosConId.map(r => ({ ...r, id: r.id_registro }))
             await bulkUpdateRegistros(payload)
             confirmarGuardado()
@@ -314,6 +312,22 @@ export function useRegistroActions({
         }
     }
 
+    // ── Drag select (highlight amarillo) ──────────────────────
+    const { seleccionCopiable, iniciarDrag, extenderDrag, limpiarSeleccion,  scrollRef } =
+        useDragSelect(listRegistro)
+
+    // ── Clipboard (Ctrl+C, Ctrl+V, pegar) ────────────────────
+    const { copiar, pegar, clipboardRegistros, hayClipboard } =
+        useClipboardActions({
+            listaVisible: listRegistro,
+            seleccionCopiable,
+            limpiarSeleccion,
+            semana,
+            idTecnico,
+            nombre,
+            setListRegistros,
+        })
+
     return {
         elementosAEliminar,
         toggleSeleccion,
@@ -331,6 +345,15 @@ export function useRegistroActions({
         revertirCambios,
         haycambiosPendientes,
         guardando,
-        confirmacionRef,  // ✅ expuesto para ModalManager
+        confirmacionRef,
+        // ── clipboard ──
+        seleccionCopiable,
+        iniciarDrag,
+        extenderDrag,
+        copiar,
+        pegar,
+        hayClipboard,
+        clipboardRegistros,
+        scrollRef,
     }
 }

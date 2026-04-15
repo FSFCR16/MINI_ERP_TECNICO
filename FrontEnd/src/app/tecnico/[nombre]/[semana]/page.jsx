@@ -74,6 +74,15 @@ export default function Page() {
         revertirCambios,
         haycambiosPendientes,
         confirmacionRef,
+        // ── clipboard ──
+        seleccionCopiable,
+        iniciarDrag,
+        extenderDrag,
+        copiar,
+        pegar,
+        hayClipboard,
+        clipboardRegistros,
+        scrollRef,
     } = useRegistroActions({
         nombre, semana, data, rowData, setRow,
         listRegistro, setListRegistros,
@@ -82,7 +91,6 @@ export default function Page() {
         openModal, openError, closeModal,
     })
 
-    // ✅ Refs para teclado
     const guardarCambiosRef = useRef(guardarCambios)
     useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
 
@@ -107,13 +115,13 @@ export default function Page() {
             if (!isS && !isZ) return
 
             e.preventDefault()
-            e.stopImmediatePropagation()  // 👈 detiene otros listeners en el mismo elemento
+            e.stopImmediatePropagation()
 
             if (isS) guardarCambiosRef.current()
             if (isZ) revertirCambiosRef.current(guardandoRef2.current)
         }
 
-        document.addEventListener("keydown", handleKeyDown, true)  // 👈 document, no window
+        document.addEventListener("keydown", handleKeyDown, true)
         return () => document.removeEventListener("keydown", handleKeyDown, true)
     }, [])
 
@@ -156,6 +164,15 @@ export default function Page() {
         setNotas,
         guardarCambios,
         revertirCambios,
+        // ── clipboard ──
+        seleccionCopiable,
+        iniciarDrag,
+        extenderDrag,
+        copiar,
+        pegar,
+        hayClipboard,
+        clipboardRegistros,
+        scrollRef,
     }
 
     const nav = {
@@ -200,7 +217,7 @@ export default function Page() {
                 setCamposFaltantes={setCamposFaltantes}
                 camposFaltantes={camposFaltantes}
                 resultadoParcial={resultadoParcial}
-                confirmacionRef={confirmacionRef} 
+                confirmacionRef={confirmacionRef}
             />
         </>
     )

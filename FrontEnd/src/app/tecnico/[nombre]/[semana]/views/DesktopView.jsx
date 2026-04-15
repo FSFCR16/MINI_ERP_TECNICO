@@ -21,7 +21,7 @@ export function DesktopView({ state, handlers, nav, modal }) {
         celdaEditando,
         tieneError,
         guardando,
-        haycambiosPendientes,   // ✅ nuevo
+        haycambiosPendientes,
     } = state
 
     // 🔹 HANDLERS
@@ -35,7 +35,16 @@ export function DesktopView({ state, handlers, nav, modal }) {
         setRow,
         setNotas,
         guardarCambios,
-        revertirCambios,      // ✅ nuevo
+        revertirCambios,
+        // ── clipboard ──
+        seleccionCopiable,
+        iniciarDrag,
+        extenderDrag,
+        copiar,
+        pegar,
+        hayClipboard,
+        clipboardRegistros,
+        scrollRef,
     } = handlers
 
     // 🔹 NAV
@@ -103,6 +112,10 @@ export function DesktopView({ state, handlers, nav, modal }) {
                         activeHeader,
                         celdaEditando,
                         guardando,
+                        // ── clipboard ──
+                        seleccionCopiable,
+                        hayClipboard,
+                        clipboardRegistros,
                     }}
                     handlers={{
                         eliminarSeleccionados,
@@ -112,6 +125,12 @@ export function DesktopView({ state, handlers, nav, modal }) {
                         setActiveCell,
                         setActiveHeader,
                         setCeldaEditando,
+                        // ── clipboard ──
+                        iniciarDrag,
+                        extenderDrag,
+                        copiar,
+                        pegar,
+                        scrollRef,
                     }}
                     nav={{
                         celdasTablaRef,

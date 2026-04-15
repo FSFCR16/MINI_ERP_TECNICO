@@ -1,7 +1,33 @@
-export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando }) {
+import { memo, useRef, useEffect, useCallback } from "react"
+
+export const TablaAcciones = memo(function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando }) {
 
     const { handleBtnAgregar, clickExportExcel, guardarCambios, revertirCambios } = handlers
     const { openModal } = modal
+
+    const propFunctionsRef = useRef({
+        handleBtnAgregar,
+        clickExportExcel,
+        guardarCambios,
+        revertirCambios,
+        openModal,
+    })
+
+    useEffect(() => {
+        propFunctionsRef.current = {
+            handleBtnAgregar,
+            clickExportExcel,
+            guardarCambios,
+            revertirCambios,
+            openModal,
+        }
+    })
+
+    const stableAgregar       = useCallback(() => propFunctionsRef.current.handleBtnAgregar(),   [])
+    const stableExcel         = useCallback(() => propFunctionsRef.current.clickExportExcel(),   [])
+    const stableGuardar       = useCallback(() => propFunctionsRef.current.guardarCambios(),     [])
+    const stableRevertir      = useCallback((v) => propFunctionsRef.current.revertirCambios(v), [])
+    const stableOpenModal     = useCallback((v) => propFunctionsRef.current.openModal(v),        [])
 
     return (
         <div className="w-full flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -9,14 +35,14 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
             <div className="flex flex-wrap items-center gap-2">
                 <button
                     className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl bg-white/60 backdrop-blur-xl border border-white/50 text-amber-600 font-semibold shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200 cursor-pointer"
-                    onClick={() => openModal("NOTAS")}
+                    onClick={() => stableOpenModal("NOTAS")}
                 >
                     📝 Notas
                 </button>
 
                 <button
                     className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl bg-white/60 backdrop-blur-xl border border-white/50 text-green-600 font-semibold shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200 cursor-pointer"
-                    onClick={clickExportExcel}
+                    onClick={stableExcel}
                 >
                     Exportar Excel
                 </button>
@@ -27,7 +53,7 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
                 {haycambiosPendientes && (
                     <>
                         <button
-                            onClick={() => revertirCambios(false)}
+                            onClick={() => stableRevertir(false)}
                             disabled={guardando}
                             style={{ opacity: guardando ? 0.4 : 1, cursor: guardando ? "not-allowed" : "pointer" }}
                             className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold bg-white/60 backdrop-blur-xl border border-white/50 text-rose-500 shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200"
@@ -39,7 +65,7 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
                         </button>
 
                         <button
-                            onClick={guardarCambios}
+                            onClick={stableGuardar}
                             disabled={guardando}
                             style={{ backgroundColor: guardando ? "#86efac" : "#22c55e", color: "white" }}
                             className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold shadow-md hover:opacity-90 active:scale-95 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed"
@@ -65,7 +91,7 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
 
                 <button
                     className="flex items-center gap-2 px-5 py-2 text-sm rounded-xl bg-indigo-500/90 backdrop-blur-xl text-white font-semibold shadow-md shadow-indigo-200/50 hover:bg-indigo-500 active:scale-95 transition-all duration-200 cursor-pointer"
-                    onClick={() => openModal("AUTO_MESSAGE")}
+                    onClick={() => stableOpenModal("AUTO_MESSAGE")}
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -74,7 +100,7 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
                 </button>
 
                 <button
-                    onClick={handleBtnAgregar}
+                    onClick={stableAgregar}
                     className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl font-semibold bg-white/60 backdrop-blur-xl border border-white/50 text-sky-600 hover:bg-white/80 active:scale-95 transition-all duration-200 cursor-pointer"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -85,4 +111,4 @@ export function TablaAcciones({ handlers, modal, haycambiosPendientes, guardando
             </div>
         </div>
     )
-}
+})
