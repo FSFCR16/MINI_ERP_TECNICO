@@ -111,15 +111,28 @@ export function useDragSelect(listaVisible) {
 
     useEffect(() => {
         const handler = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            if (!(e.ctrlKey || e.metaKey)) return
+
+            const key = e.key.toLowerCase()
+
+            if (key === 'a') {
+                const container = scrollRef.current
+                if (!container) return
+
+                // 🔥 SOLO funciona si el evento ocurrió dentro de tu tabla
+                if (!container.contains(e.target)) return
+
                 e.preventDefault()
+                e.stopPropagation()
+
                 seleccionarTodos()
             }
         }
-        window.addEventListener('keydown', handler)
-        return () => window.removeEventListener('keydown', handler)
-    }, [seleccionarTodos])
 
+        window.addEventListener('keydown', handler, true) // 🔥 capture
+
+        return () => window.removeEventListener('keydown', handler, true)
+    }, [seleccionarTodos])
     useEffect(() => {
         window.addEventListener('mouseup', terminarDrag)
         window.addEventListener('mousemove', handleMouseMove)

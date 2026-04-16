@@ -5,9 +5,17 @@ import { obtenerTecnicos } from "../Services/tencicosServices.js"
 import { useRouter } from "next/navigation";
 import { formatoFinal } from "../Utils/api.js"
 import { LoadingOverlay } from "./loadingOverlay.jsx";
+import { 
+    useLimpiarClipboard, 
+    useCopiarRegistros, 
+    useClipboardRegistros 
+} from "../app/stores/useClipboardStore.js"; // Ruta de ejemplo
 
 export default function SelectTecnicos() {
     const router = useRouter()
+    const limpiarClipboard = useLimpiarClipboard()
+    const copiarRegistros = useCopiarRegistros()
+    const registrosEnClipboard = useClipboardRegistros() 
     const semanaActual = formatoFinal()
     const [tecnicos, setTecnicos] = useState([])
     const [loading, setLoading] = useState(true)
@@ -26,18 +34,31 @@ export default function SelectTecnicos() {
     const tecnicoValido = tecnicos.includes(busqueda.toUpperCase())
 
     useEffect(() => {
+        let montado = true; // Control de seguridad
+
         const cargarDatos = async () => {
+            console.log("🚀 EJECUTANDO EFECTO");
+            setLoading(true); // Forzamos el inicio
             try {
-                const data = await obtenerTecnicos()
-                setTecnicos(data)
-            } catch {
-                setError("No se pudieron cargar los técnicos. Intente de nuevo.")
+                const data = await obtenerTecnicos();
+                if (montado) {
+                    console.log("📦 DATOS LLEGAGRON", data);
+                    setTecnicos(data);
+                }
+            } catch (error) {
+                if (montado) setError("Error al cargar");
             } finally {
-                setLoading(false)
+                if (montado) {
+                    console.log("✅ APAGANDO OVERLAY");
+                    setLoading(false);
+                }
             }
-        }
-        cargarDatos()
-    }, [])
+        };
+
+        cargarDatos();
+
+        return () => { montado = false; }; // Cleanup cuando sales de la página
+    }, []);
 
     useEffect(() => {
         if (indexResaltado >= 0 && itemsRef.current[indexResaltado]) {

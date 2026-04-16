@@ -103,6 +103,7 @@ export function useTecnicoData(nombre, semana) {
         listRegistro,
         setListRegistros: setRawRegistros,
         loading,
+        setLoading,
         error,
         semanaFechas
     };

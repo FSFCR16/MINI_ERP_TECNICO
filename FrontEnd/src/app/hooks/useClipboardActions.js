@@ -10,7 +10,6 @@ export function useClipboardActions({
     // ❌ ELIMINADO: getSeleccionCopiable. Ya no lo pasamos por props.
     limpiarSeleccion,
     semana,
-    idTecnico,
     nombre,
     setListRegistros,
 }) {
@@ -102,16 +101,23 @@ export function useClipboardActions({
             // ✅ MEJORA: toLowerCase() evita que falle si el usuario tiene Bloq Mayús activado.
             if (e.key.toLowerCase() === 'c') { 
                 e.preventDefault()
+                e.stopPropagation()
                 copiar() 
             }
             if (e.key.toLowerCase() === 'v') { 
                 e.preventDefault()
+                e.stopPropagation()
                 pegar() 
+            }
+            if (e.key.toLowerCase()  === 'd') {
+                e.preventDefault()
+                e.stopPropagation()
+                limpiarClipboard()
             }
         }
         window.addEventListener('keydown', handler)
         return () => window.removeEventListener('keydown', handler)
-    }, [copiar, pegar])
+    }, [copiar, limpiarClipboard, pegar])
 
     return { copiar, pegar, clipboardRegistros, hayClipboard: clipboardRegistros?.length > 0 }
 }

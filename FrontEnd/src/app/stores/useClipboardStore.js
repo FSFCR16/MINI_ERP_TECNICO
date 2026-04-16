@@ -1,10 +1,18 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-export const useClipboardStore = create((set) => ({
-    clipboardRegistros: [],
-    copiarRegistros: (rows) => set({ clipboardRegistros: rows }),
-    limpiarClipboard: () => set({ clipboardRegistros: [] }),
-}))
+export const useClipboardStore = create(
+    persist(
+        (set) => ({
+            clipboardRegistros: [],
+            copiarRegistros: (rows) => set({ clipboardRegistros: rows }),
+            limpiarClipboard: () => set({ clipboardRegistros: [] }),
+        }),
+        {
+            name: 'clipboard-storage', // Este será el nombre de la llave en el localStorage
+        }
+    )
+)
 
 export const useClipboardRegistros = () => useClipboardStore(s => s.clipboardRegistros)
 export const useCopiarRegistros    = () => useClipboardStore(s => s.copiarRegistros)
