@@ -8,6 +8,7 @@ import { useModalState } from "../tecnico/[nombre]/[semana]/hooks/useModalState.
 import { ModalManager } from "../tecnico/components_modal/ModalManager.jsx"
 import { formatearNumero } from "@/Utils/api.js"
 import Link from "next/link"
+import { formatearFechaSemana } from "@/Utils/api.js"
 import { ModalAgregarTecnico } from "../tecnico/components_modal/ModalAgregarTecnico.jsx"
 export default function Page() {
 
@@ -170,7 +171,7 @@ export default function Page() {
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = url
-            a.download = `${tecnico.nombre}_${tecnico.semana}.xlsx`
+            a.download = `TECNICO_${tecnico.nombre}_${formatearFechaSemana(tecnico.fecha_inicio)}_${formatearFechaSemana(tecnico.fecha_fin)}.xlsx`
             document.body.appendChild(a)
             a.click()
             a.remove()

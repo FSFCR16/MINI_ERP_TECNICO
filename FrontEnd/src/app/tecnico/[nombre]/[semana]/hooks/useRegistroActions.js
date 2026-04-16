@@ -9,7 +9,7 @@ import {
     validarJobDuplicado,
     bulkUpdateRegistros
 } from "../../../../../Services/tencicosServices.js"
-import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod, actualizarPorcentajeCC } from "../../../../../Utils/api.js"
+import { procesarDatosTecnico, procesarData, formatearNumero, mapearErroresZod, actualizarPorcentajeCC, formatearFechaSemana } from "../../../../../Utils/api.js"
 import { tecnicoSchema } from '@/app/schemas/tecnicoSchema.js'
 import { columnasBase } from '../tableRow/columnasBase.jsx'
 import { useRevertible } from '../../../../../app/hooks/useRevertible.js'
@@ -31,6 +31,8 @@ export function useRegistroActions({
     openModal,
     openError,
     closeModal,
+    semanaFechas,
+
 }) {
     const [elementosAEliminar, setElementosAEliminar] = useState([])
     const [guardando, setGuardando] = useState(false)
@@ -177,6 +179,7 @@ export function useRegistroActions({
 
     const exportarExcelDB = async () => {
         try {
+            console.log(semanaFechas)
             closeModal()
             setLoading(true)
             const registrosGuardados = listRegistro.filter(e => e.id_registro)
@@ -189,7 +192,7 @@ export function useRegistroActions({
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = url
-            a.download = `${nombre}_${semana}.xlsx`
+            a.download = `tecnico_${nombre}_${semanaFechas.inicio}_${semanaFechas.fin}.xlsx`
             document.body.appendChild(a)
             a.click()
             a.remove()

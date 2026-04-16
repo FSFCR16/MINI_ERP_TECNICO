@@ -89,7 +89,7 @@ export default function Page() {
         clipboardRegistros,
         scrollRef,
     } = useRegistroActions({
-        nombre, semana, data, rowData, setRow,
+        nombre, semana,semanaFechas, data, rowData, setRow,
         listRegistro, setListRegistros,
         registrosLocalStorage, setRegistrosLocalStorage,
         setLoading, setError, setNotas,
