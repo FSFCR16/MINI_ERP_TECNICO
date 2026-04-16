@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     confirmarTecnico,
     ValidarSemanaTecnico,
@@ -20,21 +20,22 @@ export function useTecnicoData(nombre, semana) {
 
     const semanaStr = typeof semana === "string" ? semana : String(semana || "");
 
-    // ← prevParams y su guard ELIMINADOS
-
     useEffect(() => {
         if (!nombre || !semanaStr) return;
 
         let isMounted = true;
+        // Generamos un ID único para los logs de esta ejecución específica
+        const loadId = Math.random().toString(36).substring(7);
 
         const cargarDatos = async () => {
             setLoading(true);
             setError(null);
-            setData([]);           // limpiar estado anterior
-            setRawRegistros([]);   // limpiar estado anterior
 
             try {
+                if (process.env.NODE_ENV === 'development') console.time(`⏱️ Validar-${loadId}`);
                 const semanaFecha = await ValidarSemanaTecnico(semanaStr);
+                if (process.env.NODE_ENV === 'development') console.timeEnd(`⏱️ Validar-${loadId}`);
+
                 if (!isMounted) return;
 
                 setSemanaFechas({
@@ -42,22 +43,19 @@ export function useTecnicoData(nombre, semana) {
                     fin: formatearFechaSemana(semanaFecha?.fecha_fin)
                 });
 
+                if (process.env.NODE_ENV === 'development') console.time(`⏱️ Info+Registros-${loadId}`);
+                
                 const [infoTecnico, registrosPrevios] = await Promise.all([
                     confirmarTecnico(nombre),
                     getRegistrosPrevios(nombre, semanaStr).catch(() => [])
                 ]);
 
+                if (process.env.NODE_ENV === 'development') console.timeEnd(`⏱️ Info+Registros-${loadId}`);
+
                 if (!isMounted) return;
 
-                const tecnicoArray = Array.isArray(infoTecnico)
-                    ? infoTecnico
-                    : (infoTecnico ? [infoTecnico] : []);
-
-                const registrosArray = Array.isArray(registrosPrevios)
-                    ? registrosPrevios : [];
-
-                setData(tecnicoArray);
-                setRawRegistros(registrosArray);
+                setData(Array.isArray(infoTecnico) ? infoTecnico : (infoTecnico ? [infoTecnico] : []));
+                setRawRegistros(Array.isArray(registrosPrevios) ? registrosPrevios : []);
 
             } catch (err) {
                 if (isMounted) {
@@ -71,32 +69,34 @@ export function useTecnicoData(nombre, semana) {
 
         cargarDatos();
 
-        return () => {
-            isMounted = false;
-        };
-
+        return () => { isMounted = false; };
     }, [nombre, semanaStr]);
 
+    // Optimización: listRegistro solo se recalcula si rawRegistros o data cambian realmente
     const listRegistro = useMemo(() => {
-        if (!rawRegistros.length) return []
-        if (!data.length) return rawRegistros
+        if (rawRegistros.length === 0) return [];
+        if (data.length === 0) return rawRegistros;
 
-        const dataMap = new Map(
-            data.map(t => [
-                (t.job || "").replace(/\s+/g, ""),
-                t
-            ])
-        )
+        // Creamos el Map una sola vez por cada cambio de 'data'
+        const dataMap = new Map();
+        data.forEach(t => {
+            const cleanJob = (t.job || "").replace(/\s+/g, "");
+            dataMap.set(cleanJob, t);
+        });
 
-        return rawRegistros.flatMap(dato => {
-            const key = (dato.job || "").replace(/\s+/g, "")
-            const tecnicoMatch = dataMap.get(key)
-            return tecnicoMatch
-                ? procesarDatosTecnico([tecnicoMatch], dato)
-                : []
-        })
+        return rawRegistros.reduce((acc, dato) => {
+            const key = (dato.job || "").replace(/\s+/g, "");
+            const tecnicoMatch = dataMap.get(key);
+            
+            if (tecnicoMatch) {
+                // Usamos spread o push para evitar flatMap que a veces es más lento en arrays grandes
+                const procesados = procesarDatosTecnico([tecnicoMatch], dato);
+                acc.push(...procesados);
+            }
+            return acc;
+        }, []);
 
-    }, [rawRegistros, data])
+    }, [rawRegistros, data]);
 
     return {
         data,

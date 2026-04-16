@@ -1,16 +1,13 @@
 import { useEffect, useCallback } from "react"
 import { useClipboardStore } from "../stores/useClipboardStore"
+// IMPORTANTE: Importa tu store de selección aquí (ajusta la ruta según tu proyecto)
+import { useSeleccionStore } from "../stores/useClipboardStore"
 import { envioTablaDB } from "@/Services/tencicosServices.js"
 import { procesarData } from "@/Utils/api.js"
 
 export function useClipboardActions({
     listaVisible = [],
-    // ── FIX: recibe getSeleccionCopiable (función) en vez de seleccionCopiable (valor reactivo).
-    // Antes: seleccionCopiable era s => s.seleccion del store, lo que hacía al padre
-    // re-suscribirse al store y re-renderizarse en cada drag.
-    // Ahora: getSeleccionCopiable() lee el estado en el momento de copiar (lazy read),
-    // sin crear ninguna suscripción reactiva.
-    getSeleccionCopiable,
+    // ❌ ELIMINADO: getSeleccionCopiable. Ya no lo pasamos por props.
     limpiarSeleccion,
     semana,
     idTecnico,
@@ -20,19 +17,31 @@ export function useClipboardActions({
     const { clipboardRegistros, copiarRegistros, limpiarClipboard } = useClipboardStore()
 
     const copiar = useCallback(() => {
-        // Lee el Set en el momento exacto de copiar, sin necesidad de tenerlo en estado
-        const seleccion = getSeleccionCopiable?.() ?? new Set()
+        // ✅ SOLUCIÓN: Zustand .getState() lee la selección exacta al momento de presionar Ctrl+C
+        const seleccion = useSeleccionStore.getState().seleccion
 
-        if (seleccion.size === 0) return
+        if (seleccion.size === 0) {
+            console.log("No hay nada seleccionado para copiar.");
+            return;
+        }
 
-        const rows = listaVisible.filter(r => seleccion.has(r.id_registro ?? r.id))
-        if (rows.length === 0) return
+        // ✅ MEJORA: Validamos ambos IDs. Si guardaste el 'id' local, pero la fila ya 
+        // tiene 'id_registro', el Set lo encontrará de todas formas.
+        const rows = listaVisible.filter(r => seleccion.has(r.id_registro) || seleccion.has(r.id))
+        
+        if (rows.length === 0) {
+            console.log("No se encontraron las filas en listaVisible.");
+            return;
+        }
 
         copiarRegistros(rows)
+        console.log("Filas copiadas al portapapeles:", rows);
+        
         if (limpiarSeleccion) limpiarSeleccion()
-    }, [getSeleccionCopiable, listaVisible, copiarRegistros, limpiarSeleccion])
+    }, [listaVisible, copiarRegistros, limpiarSeleccion])
 
     const pegar = useCallback(async () => {
+        // (Tu código de pegar se mantiene exactamente igual, está perfecto)
         if (!clipboardRegistros || clipboardRegistros.length === 0) return
 
         const nuevos = clipboardRegistros.map(r => {
@@ -89,8 +98,16 @@ export function useClipboardActions({
     useEffect(() => {
         const handler = (e) => {
             if (!(e.ctrlKey || e.metaKey)) return
-            if (e.key === 'c') { e.preventDefault(); copiar() }
-            if (e.key === 'v') { e.preventDefault(); pegar() }
+            
+            // ✅ MEJORA: toLowerCase() evita que falle si el usuario tiene Bloq Mayús activado.
+            if (e.key.toLowerCase() === 'c') { 
+                e.preventDefault()
+                copiar() 
+            }
+            if (e.key.toLowerCase() === 'v') { 
+                e.preventDefault()
+                pegar() 
+            }
         }
         window.addEventListener('keydown', handler)
         return () => window.removeEventListener('keydown', handler)

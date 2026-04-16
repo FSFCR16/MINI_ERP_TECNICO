@@ -56,6 +56,25 @@ export const modalConfig = {
     "CAMPOS_FALTANTES": {
         title: "DATOS FALTANTES",
         modalRender: 5
+    },
+    // Nuevas configuraciones agregadas para los modales de eliminación:
+    "ELIMINAR_SEMANA": {
+        title: "ELIMINAR SEMANA",
+        message: "¿Estás seguro de que deseas eliminar esta semana? Esta acción no se puede deshacer.",
+        confirmText: "ELIMINAR",
+        cancelText: "CANCELAR",
+        showBtn: true,
+        modalRender: 1,
+        hasFunction: true,
+    },
+    "ELIMINAR_TECNICO": {
+        title: "ELIMINAR TÉCNICO",
+        message: "¿Estás seguro de que deseas eliminar a este técnico? Se borrarán sus registros de esta semana.",
+        confirmText: "ELIMINAR",
+        cancelText: "CANCELAR",
+        showBtn: true,
+        modalRender: 1,
+        hasFunction: true,
     }
 }
 
@@ -68,10 +87,14 @@ export function getModalEntry(tipo, { finalizarTabla, exportarExcelDB, notas, er
     if (tipo === "NOTAS") dinamico.message = notas
     if (tipo === "ERROR") dinamico.message = errores
 
+    // Mapeamos las nuevas acciones al prop "finalizarTabla" 
+    // (que es donde Page.js está enviando la 'accionPendiente')
     const funcionesPorTipo = {
         "FINALIZAR": finalizarTabla,
         "EXPORTAR": exportarExcelDB,
         "REGISTROS_NO_GUARDADOS": exportarExcelDB,
+        "ELIMINAR_SEMANA": finalizarTabla, 
+        "ELIMINAR_TECNICO": finalizarTabla,
     }
 
     if (funcionesPorTipo[tipo]) {

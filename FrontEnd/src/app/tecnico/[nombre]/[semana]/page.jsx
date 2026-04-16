@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { procesarDatosTecnico } from "../../../../Utils/api.js"
 import { MobileView } from "./views/MobileView.jsx"
@@ -12,10 +12,8 @@ import { useTablaNavegacion } from './hooks/useTablaNavegacion.js'
 import { useModalState } from './hooks/useModalState.js'
 
 export default function Page() {
-
     const { nombre, semana } = useParams()
-
-    const columnasDeshabilitdasGenerales = ["nombre"]
+    const columnasDeshabilitdasGenerales = useMemo(() => ["nombre"], [])
 
     const { modal, openModal, openError, closeModal } = useModalState()
 
@@ -37,9 +35,16 @@ export default function Page() {
     const [camposFaltantes, setCamposFaltantes] = useState([])
     const [notasOverride, setNotas] = useState(null)
 
-    const rowDataBase = data?.length > 0 ? procesarDatosTecnico(data[0]) : {}
+    // 1. Memoizamos la base de los datos para que no se procese en cada render
+    const rowDataBase = useMemo(() => 
+        data?.length > 0 ? procesarDatosTecnico(data[0]) : {}, 
+    [data])
+
     const [rowOverrides, setRowOverrides] = useState({})
-    const rowData = { ...rowDataBase, ...rowOverrides }
+
+    // 2. RowData solo cambia si cambia la base o los overrides
+    const rowData = useMemo(() => ({ ...rowDataBase, ...rowOverrides }), [rowDataBase, rowOverrides])
+    
     const notas = notasOverride ?? rowDataBase?.notas ?? []
 
     const {
@@ -50,7 +55,8 @@ export default function Page() {
         moverseEntreCeldas, moverseEnTablaGeneral, baseRef,
     } = useTablaNavegacion()
 
-    const setRow = (valOrFn) => {
+    // 3. useCallback para setRow para mantener estabilidad referencial
+    const setRow = useCallback((valOrFn) => {
         if (typeof valOrFn === "function") {
             setRowOverrides(prev => {
                 const merged = { ...rowDataBase, ...prev }
@@ -60,7 +66,7 @@ export default function Page() {
         } else {
             setRowOverrides(valOrFn)
         }
-    }
+    }, [rowDataBase])
 
     const {
         elementosAEliminar,
@@ -74,7 +80,6 @@ export default function Page() {
         revertirCambios,
         haycambiosPendientes,
         confirmacionRef,
-        // ── clipboard ──
         seleccionCopiable,
         iniciarDrag,
         extenderDrag,
@@ -91,6 +96,7 @@ export default function Page() {
         openModal, openError, closeModal,
     })
 
+    // Refs para shortcuts (se mantienen igual)
     const guardarCambiosRef = useRef(guardarCambios)
     useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
 
@@ -100,6 +106,7 @@ export default function Page() {
     const guardandoRef2 = useRef(guardando)
     useEffect(() => { guardandoRef2.current = guardando }, [guardando])
 
+    // Resize listener
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768)
         handleResize()
@@ -107,43 +114,24 @@ export default function Page() {
         return () => window.removeEventListener("resize", handleResize)
     }, [])
 
-        // DEBUG TEMPORAL ↓
-    useEffect(() => {
-        console.log("🔄 loading cambió:", loading)
-    }, [loading])
-
-    useEffect(() => {
-        console.log("📦 nombre:", nombre, "| semana:", semana)
-    }, [nombre, semana])
-    // DEBUG TEMPORAL ↑
-
+    // Shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
             const isS = (e.ctrlKey || e.metaKey) && e.key === "s"
             const isZ = (e.ctrlKey || e.metaKey) && e.key === "z"
-
             if (!isS && !isZ) return
-
             e.preventDefault()
             e.stopImmediatePropagation()
-
             if (isS) guardarCambiosRef.current()
             if (isZ) revertirCambiosRef.current(guardandoRef2.current)
         }
-
         document.addEventListener("keydown", handleKeyDown, true)
         return () => document.removeEventListener("keydown", handleKeyDown, true)
     }, [])
 
-    if (error) return (
-        <div className="w-full flex justify-center">
-            <div className="w-full max-w-2xl bg-white/60 backdrop-blur-xl border border-red-300/40 rounded-3xl shadow-2xl px-10 py-16 text-center">
-                <p className="text-red-600 font-medium text-lg">{error}</p>
-            </div>
-        </div>
-    )
+    // --- BLOQUE DE MEMOIZACIÓN DE PROPS ---
 
-    const state = {
+    const state = useMemo(() => ({
         nombre,
         semanaFechas,
         listRegistro,
@@ -161,9 +149,9 @@ export default function Page() {
         revertirCambios,
         haycambiosPendientes,
         guardando,
-    }
+    }), [nombre, semanaFechas, listRegistro, rowData, data, elementosAEliminar, columnasDeshabilitdasGenerales, columnasTablaGeneral, columnasTablaEditable, activeCell, activeHeader, celdaEditando, tieneError, guardarCambios, revertirCambios, haycambiosPendientes, guardando])
 
-    const handlers = {
+    const handlers = useMemo(() => ({
         handleBtnAgregar,
         eliminarSeleccionados,
         clickExportExcel,
@@ -174,7 +162,6 @@ export default function Page() {
         setNotas,
         guardarCambios,
         revertirCambios,
-        // ── clipboard ──
         seleccionCopiable,
         iniciarDrag,
         extenderDrag,
@@ -183,9 +170,9 @@ export default function Page() {
         hayClipboard,
         clipboardRegistros,
         scrollRef,
-    }
+    }), [handleBtnAgregar, eliminarSeleccionados, clickExportExcel, actualizarCeldaRegistro, toggleSeleccion, toggleSeleccionTodos, setRow, setNotas, guardarCambios, revertirCambios, seleccionCopiable, iniciarDrag, extenderDrag, copiar, pegar, hayClipboard, clipboardRegistros, scrollRef])
 
-    const nav = {
+    const nav = useMemo(() => ({
         celdasTablaRef,
         checkboxMaestroRef,
         guardandoRef,
@@ -195,14 +182,22 @@ export default function Page() {
         setActiveCell,
         setActiveHeader,
         setCeldaEditando,
-    }
+    }), [celdasTablaRef, checkboxMaestroRef, guardandoRef, moverseEntreCeldas, moverseEnTablaGeneral, baseRef, setActiveCell, setActiveHeader, setCeldaEditando])
 
-    const modalState = {
+    const modalState = useMemo(() => ({
         modal,
         openModal,
         openError,
         closeModal,
-    }
+    }), [modal, openModal, openError, closeModal])
+
+    if (error) return (
+        <div className="w-full flex justify-center">
+            <div className="w-full max-w-2xl bg-white/60 backdrop-blur-xl border border-red-300/40 rounded-3xl shadow-2xl px-10 py-16 text-center">
+                <p className="text-red-600 font-medium text-lg">{error}</p>
+            </div>
+        </div>
+    )
 
     return (
         <>

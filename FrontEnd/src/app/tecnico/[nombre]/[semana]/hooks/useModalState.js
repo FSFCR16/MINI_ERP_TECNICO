@@ -1,4 +1,3 @@
-// /app/tecnico/[nombre]/[semana]/hooks/useModalState.js
 import { useReducer } from "react"
 
 const modalInicial = { isOpen: false, tipo: "", errores: [], data: null }

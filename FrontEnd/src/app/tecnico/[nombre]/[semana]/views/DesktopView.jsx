@@ -2,8 +2,10 @@ import { TablaRegistros } from './Desktop/TablaRegistros.jsx'
 import { TablaEditable } from './Desktop/TablaEditable.jsx'
 import { TablaAcciones } from './Desktop/TablaAcciones.jsx'
 import Link from "next/link"
+import { useRef, useEffect } from "react"
+import { memo } from "react";
 
-export function DesktopView({ state, handlers, nav, modal }) {
+export const DesktopView = memo(function DesktopView({ state, handlers, nav, modal }) {
 
     // 🔹 STATE
     const {
@@ -62,6 +64,18 @@ export function DesktopView({ state, handlers, nav, modal }) {
 
     // 🔹 MODAL
     const { openModal } = modal
+
+    const mountTimeRef = useRef(null)
+
+    useEffect(() => {
+        mountTimeRef.current = performance.now()
+    }, [])
+
+    useEffect(() => {
+        if (!listRegistro?.length) return
+        const ahora = performance.now()
+        console.log("⏱ tiempo hasta render con datos:", (ahora - mountTimeRef.current).toFixed(1), "ms")
+    }, [listRegistro])
 
     return (
         <div className="h-screen w-full flex justify-center overflow-hidden bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 px-4 py-4">
@@ -179,4 +193,4 @@ export function DesktopView({ state, handlers, nav, modal }) {
             </div>
         </div>
     )
-}
+});
