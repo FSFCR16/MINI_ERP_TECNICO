@@ -152,7 +152,6 @@ export function useRegistroActions({
 
     try {
       const res = await envioTablaDB([rowCopy], semana);
-      console.log("res completo:", res);
       const idReal = res?.registros?.[0]?.id;
 
       if (idReal) {
@@ -208,7 +207,6 @@ export function useRegistroActions({
 
   const exportarExcelDB = async () => {
     try {
-      console.log(semanaFechas);
       closeModal();
       setLoading(true);
       const registrosGuardados = listRegistro.filter((e) => e.id_registro);
@@ -238,17 +236,10 @@ export function useRegistroActions({
 
   const actualizarCeldaRegistro = useCallback(
     (id_registro, colKey, nuevoValor) => {
-      console.log("✏️ actualizarCelda llamado:", colKey, nuevoValor);
       marcarCambio(id_registro);
       setListRegistros((prev) => {
-        console.log("🔍 buscando id_registro:", id_registro);
-        console.log(
-          "🔍 ids en prev:",
-          prev.map((r) => r.id_registro),
-        );
         const copia = [...prev];
         const realIndex = copia.findIndex((r) => r.id_registro === id_registro);
-        console.log("🔍 realIndex:", realIndex);
         if (realIndex === -1) return prev;
 
         const filaActual = copia[realIndex];
@@ -312,12 +303,6 @@ export function useRegistroActions({
           : filaActualizada;
 
         copia[realIndex] = filaFinal;
-        console.log(
-          "✅ filaFinal porcentaje_cc:",
-          filaFinal.porcentaje_cc,
-          "| es mismo objeto?",
-          filaFinal === prev[realIndex],
-        );
         return copia;
       });
     },
