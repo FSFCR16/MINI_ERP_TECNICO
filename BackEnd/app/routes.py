@@ -6,10 +6,10 @@ from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrab
 from app.schemmas import TrabajoCreateSchema,TrabajoSchema,UpdateRegistroSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
-
 router = APIRouter(
     prefix="/api",
-    tags=["home"]
+    tags=["home"],
+    redirect_slashes=False  # ← esto
 )
 
 

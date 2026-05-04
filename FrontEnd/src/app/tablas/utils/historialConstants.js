@@ -1,0 +1,4 @@
+export const VISTAS_HISTORIAL = {
+  SEMANAS: "SEMANAS",
+  TECNICOS: "TECNICOS",
+};
