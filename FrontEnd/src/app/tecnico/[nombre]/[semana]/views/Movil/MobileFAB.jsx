@@ -22,23 +22,23 @@ export function MobileFAB({ openModal }) {
             : "opacity-0 translate-y-4 pointer-events-none"
         }`}>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-full px-3 py-1 shadow-sm">
               Mensaje
             </span>
             <button
               onClick={() => accion("AUTO_MESSAGE")}
-              className="w-11 h-11 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 text-indigo-600 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
+              className="w-11 h-11 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 text-indigo-600 dark:text-indigo-400 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
             >
               💬
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-600 bg-white/80 backdrop-blur-xl border border-white/50 rounded-full px-3 py-1 shadow-sm">
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-full px-3 py-1 shadow-sm">
               Notas
             </span>
             <button
               onClick={() => accion("NOTAS")}
-              className="w-11 h-11 rounded-full bg-white/70 backdrop-blur-xl border border-white/50 text-amber-500 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
+              className="w-11 h-11 rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 text-amber-500 dark:text-amber-400 shadow-md flex items-center justify-center active:scale-95 transition text-lg"
             >
               📝
             </button>
@@ -47,7 +47,7 @@ export function MobileFAB({ openModal }) {
 
         <button
           onClick={() => setFabAbierto(prev => !prev)}
-          className={`w-[52px] h-[52px] rounded-full bg-white/70 backdrop-blur-2xl border border-white/60 text-slate-700 shadow-lg flex items-center justify-center transition-all duration-300 active:scale-95 ${
+          className={`w-[52px] h-[52px] rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-2xl border border-white/60 dark:border-slate-700/60 text-slate-700 dark:text-slate-200 shadow-lg flex items-center justify-center transition-all duration-300 active:scale-95 ${
             fabAbierto ? "rotate-45" : ""
           }`}
         >

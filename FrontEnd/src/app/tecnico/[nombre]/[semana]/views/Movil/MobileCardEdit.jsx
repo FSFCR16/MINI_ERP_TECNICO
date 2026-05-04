@@ -15,11 +15,11 @@ export function MobileCardEdit({
         .filter(col => col.key !== "check_box" && col.key !== "total")
         .map(col => (
           <div key={col.key} className="flex flex-col gap-1">
-            <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wide pl-1">
+            <label className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide pl-1">
               {col.label}
             </label>
             {col.editable ? (
-              <div className="bg-white/70 border border-sky-200/60 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-white/70 dark:bg-slate-700/70 border border-sky-200/60 dark:border-sky-700/50 rounded-xl overflow-hidden shadow-sm">
                 <CellRenderer
                   col={col}
                   index={0}
@@ -42,7 +42,7 @@ export function MobileCardEdit({
                 />
               </div>
             ) : (
-              <span className="text-xs font-semibold text-slate-500 px-1">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 px-1">
                 {row[col.key] ?? "—"}
               </span>
             )}

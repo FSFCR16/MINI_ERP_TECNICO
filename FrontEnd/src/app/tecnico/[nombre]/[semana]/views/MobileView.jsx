@@ -35,7 +35,6 @@ export function MobileView({
   revertirCambios,
   haycambiosPendientes,
   guardando,
-  // clipboard
   iniciarDrag,
   copiar,
   pegar,
@@ -44,7 +43,6 @@ export function MobileView({
   const [editando, setEditando] = useState(null);
   const [registrosFiltrados, setRegistrosFiltrados] = useState(null);
 
-  // Reactivo: solo el tamaño para saber si hay algo seleccionado para copiar
   const seleccionSize = useSeleccionStore(s => s.seleccion.size);
   const clipboardRegistros = useClipboardRegistros();
   const hayClipboard = clipboardRegistros?.length > 0;
@@ -68,14 +66,10 @@ export function MobileView({
 
   return (
     <div
-      className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 p-4 flex flex-col gap-4"
+      className="min-h-screen w-full bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-950 p-4 flex flex-col gap-4"
       style={{ paddingBottom: "100px" }}
     >
-      <MobileHeader
-        nombre={nombre}
-        semanaFechas={semanaFechas}
-        openModal={openModal}
-      />
+      <MobileHeader nombre={nombre} semanaFechas={semanaFechas} openModal={openModal} />
 
       <MobileFormulario
         columnasTablaEditable={columnasTablaEditable}
@@ -107,7 +101,7 @@ export function MobileView({
 
       <div className="flex flex-col gap-3">
         {listaVisible.length === 0 && listRegistro.length > 0 && (
-          <p className="text-center text-xs text-slate-400 py-6">
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-6">
             Sin resultados para esa búsqueda
           </p>
         )}

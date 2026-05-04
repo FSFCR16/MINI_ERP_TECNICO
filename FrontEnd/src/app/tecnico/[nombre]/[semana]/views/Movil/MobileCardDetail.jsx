@@ -11,10 +11,10 @@ export function MobileCardDetail({ row, columnasTablaGeneral }) {
         )
         .map(col => (
           <div key={col.key} className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
               {col.label}
             </span>
-            <span className="text-xs font-semibold text-slate-700 break-words">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 break-words">
               {row[col.key] ?? "—"}
             </span>
           </div>
