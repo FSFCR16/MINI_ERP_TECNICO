@@ -71,13 +71,14 @@ export default function Page() {
     return filtrarHistorial(base, busqueda, vistaSemanas);
   }, [vistaSemanas, listSemanas, listTecnicos, busqueda]);
 
+  // ── Cargar técnicos de una semana ──────────────────────────
   const cargarTecnicosSemana = async (semana) => {
     setLoadingDetalle(true);
     try {
       const datos = await traerTecnicosSemana(semana.id);
       setListTecnicos(datos || []);
       setSemanaSeleccionada(semana);
-      setSemanalocal(semana);
+      setSemanalocal(semana); // sincroniza el hook del modal
       setVistaSemanas(false);
       setBusqueda("");
     } catch (err) {
@@ -92,6 +93,7 @@ export default function Page() {
     setBusqueda("");
   };
 
+  // ── Eliminar semana ────────────────────────────────────────
   const handleEliminarSemana = async (semana_id) => {
     try {
       closeModal();
@@ -105,6 +107,7 @@ export default function Page() {
     }
   };
 
+  // ── Eliminar técnico de la semana ──────────────────────────
   const handleEliminarTecnico = async (nombre) => {
     try {
       closeModal();
@@ -118,6 +121,7 @@ export default function Page() {
     }
   };
 
+  // ── Exportar Excel ─────────────────────────────────────────
   const handleExportarExcel = async (tecnico) => {
     try {
       setLoadingDetalle(true);
@@ -172,6 +176,7 @@ export default function Page() {
     }
   };
 
+  // ── Modal eliminar genérico ────────────────────────────────
   const abrirModalEliminar = (tipo, accion) => {
     setAccionPendiente(() => accion);
     openModal(tipo);
@@ -180,8 +185,8 @@ export default function Page() {
   if (error) {
     return (
       <div className="w-full flex justify-center mt-20">
-        <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-red-200/50 dark:border-red-900/50 rounded-2xl px-8 py-10 text-center max-w-sm">
-          <p className="text-rose-500 dark:text-rose-400 font-medium text-sm">{error}</p>
+        <div className="bg-white/60 backdrop-blur-xl border border-red-200/50 rounded-2xl px-8 py-10 text-center max-w-sm">
+          <p className="text-rose-500 font-medium text-sm">{error}</p>
         </div>
       </div>
     );
@@ -191,9 +196,10 @@ export default function Page() {
     <>
       {(loading || loadingDetalle) && <LoadingOverlay />}
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-950 flex justify-center px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 flex justify-center px-4 py-8">
         <div className="w-full max-w-3xl flex flex-col gap-4">
 
+          {/* ── Header ── */}
           <HistorialHeader
             vistaSemanas={vistaSemanas}
             semanaSeleccionada={semanaSeleccionada}
@@ -201,15 +207,18 @@ export default function Page() {
             count={listFiltrada.length}
             onVolver={volverSemanas}
             onInicio={() => router.push("/")}
+            // FIX: pasa semanaSeleccionada al abrir el modal
             onAgregar={() => abrirModalAgregar(semanaSeleccionada)}
           />
 
+          {/* ── Buscador ── */}
           <HistorialSearchBar
             value={busqueda}
             onChange={setBusqueda}
             placeholder={vistaSemanas ? "Buscar semana..." : "Buscar técnico..."}
           />
 
+          {/* ── Estado vacío ── */}
           {listFiltrada.length === 0 && !loading && !loadingDetalle && (
             <HistorialEmptyState
               mensaje={
@@ -220,6 +229,7 @@ export default function Page() {
             />
           )}
 
+          {/* ── Lista semanas ── */}
           {vistaSemanas && (
             <div className="flex flex-col gap-3">
               {listFiltrada.map((semana) => (
@@ -237,6 +247,7 @@ export default function Page() {
             </div>
           )}
 
+          {/* ── Lista técnicos ── */}
           {!vistaSemanas && (
             <div className="flex flex-col gap-3">
               {listFiltrada.map((cart) => (
@@ -257,6 +268,7 @@ export default function Page() {
         </div>
       </div>
 
+      {/* ── Modales ── */}
       <ModalManager
         modal={modal}
         closeModal={closeModal}
