@@ -155,6 +155,17 @@ function cash(params) {
       total: formatearNumero((valorReal / 2) + params.adicional_dolar)
     }
   }
+  
+  if (minimoTenicoValidacion > params.minimo || params.tipo_pago === "MIXTO") {
+    return {
+      ...params,
+      total: formatearNumero(
+        miniGil +
+        params.partes_gil +
+        params.adicional_dolar
+      )
+    }
+  }
 
   if (minimoTenicoValidacion > 0 && minimoTenicoValidacion <= params.minimo) {
     return {
@@ -166,16 +177,6 @@ function cash(params) {
     }
   }
 
-  if (minimoTenicoValidacion > params.minimo || params.tipo_pago === "MIXTO") {
-    return {
-      ...params,
-      total: formatearNumero(
-        miniGil +
-        params.partes_gil +
-        params.adicional_dolar
-      )
-    }
-  }
 
   return params
 }
@@ -241,6 +242,7 @@ function ccComoCash(params) {
 }
 
 function mixto(params) {
+
   const cashParams = {
     ...params,
     valor_servicio: params.valor_efectivo
@@ -256,7 +258,9 @@ function mixto(params) {
   }
 
   const valorCash = cash(cashParams)
+  console.log(valorCash, "cash")
   const valorCC = CC(ccParams)
+  console.log(valorCC)
 
   return {
     ...params,
