@@ -1,11 +1,16 @@
 // useRegistroActions.js
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+// Acciones de la tabla del módulo GENERAL. Ahora delega edición/selección/clipboard/
+// historial/guardado al MOTOR compartido `useTablaEditable` (mismo que Virginia).
+// Mantiene su API de retorno (con alias) para no tocar DesktopView/MobileView/TablaAcciones.
+//
+// Cambio de comportamiento vs versión previa: pegar y eliminar ahora son DIFERIDOS
+// (quedan pendientes hasta Guardar), y el historial es multinivel (Ctrl+Z / Ctrl+Y).
+import { useMemo, useEffect, useRef, useCallback } from "react";
 import {
   envioTablaDB,
   getRegistrosPrevios,
   eliminarRegistrosDb,
   exportarExcelDBPost,
-  updateRegistro,
   validarJobDuplicado,
   bulkUpdateRegistros,
 } from "../../../../../Services/tencicosServices.js";
@@ -15,18 +20,22 @@ import {
   formatearNumero,
   mapearErroresZod,
   actualizarPorcentajeCC,
-  formatearFechaSemana,
 } from "../../../../../Utils/api.js";
 import { tecnicoSchema } from "@/app/schemas/tecnicoSchema.js";
 import { columnasBase } from "../tableRow/columnasBase.jsx";
-import { useRevertible } from "../../../../../app/hooks/useRevertible.js";
-import { useDragSelect } from "@/app/hooks/useDragSelect.js";
-import { useClipboardActions } from "@/app/hooks/useClipboardActions.js";
+import { useTablaEditable } from "@/app/hooks/useTablaEditable";
+
+// Campos para el diff (qué cambió vs lo guardado) y para disparar recálculo.
+const CAMPOS_COMPARAR = ["job", "job_name", "valor_servicio", "tipo_pago", "valor_tarjeta",
+  "valor_efectivo", "partes_gil", "partes_tecnico", "tech", "porcentaje_tecnico",
+  "porcentaje_cc", "aplica_dolar_empresa", "is_cash", "subtotal", "total"];
+const CAMPOS_RECALCULAN = ["valor_servicio", "valor_efectivo", "valor_tarjeta", "partes_gil",
+  "partes_tecnico", "tech", "tipo_pago", "aplica_dolar_empresa", "adicional_dolar",
+  "porcentaje_tecnico", "porcentaje_cc", "is_cash"];
 
 export function useRegistroActions({
   nombre,
   semana,
-  idTecnico, // ← nuevo param requerido para clipboard
   data,
   rowData,
   setRow,
@@ -34,34 +43,14 @@ export function useRegistroActions({
   setListRegistros,
   setLoading,
   setError,
-  setNotas,
   openModal,
   openError,
   closeModal,
   semanaFechas,
 }) {
-  const [elementosAEliminar, setElementosAEliminar] = useState([]);
-  const [guardando, setGuardando] = useState(false);
-
   const confirmacionRef = useRef(null);
-
   const openModalRef = useRef(openModal);
-  useEffect(() => {
-    openModalRef.current = openModal;
-  }, [openModal]);
-
-  const listRegistroRef = useRef(listRegistro);
-  useEffect(() => {
-    listRegistroRef.current = listRegistro;
-  }, [listRegistro]);
-
-  const {
-    haycambiosPendientes,
-    marcarCambio,
-    revertirCambios,
-    confirmarGuardado,
-    getIdsModificados,
-  } = useRevertible(listRegistroRef, setListRegistros);
+  useEffect(() => { openModalRef.current = openModal; }, [openModal]);
 
   const buildColumns = (rowDataParam = {}, tipoTabla) =>
     columnasBase
@@ -76,48 +65,102 @@ export function useRegistroActions({
 
   const columnasTablaEditable = useMemo(
     () => buildColumns(rowData ?? {}, "editable"),
-    [rowData?.tipo_pago], // ← ?. aquí también
+    [rowData?.tipo_pago],
   );
   const columnasTablaGeneral = useMemo(() => buildColumns({}, "general"), []);
 
-  const toggleSeleccion = useCallback((dataEliminar) => {
-    setElementosAEliminar((prev) =>
-      prev.includes(dataEliminar)
-        ? prev.filter((e) => e !== dataEliminar)
-        : [...prev, dataEliminar],
-    );
+  // ── Lógica específica del general que inyecta el motor ──────────────
+  const editarCelda = useCallback((filaActual, colKey, nuevoValor) => {
+    let fa = { ...filaActual, [colKey]: nuevoValor };
+
+    if (colKey === "tipo_pago" && String(nuevoValor).toLowerCase() !== "mixto") {
+      fa.valor_tarjeta = 0;
+      fa.valor_efectivo = 0;
+    }
+    if ((colKey === "valor_tarjeta" || colKey === "valor_efectivo") && fa.tipo_pago?.toLowerCase() !== "mixto") {
+      fa[colKey] = 0;
+    }
+    if (colKey === "porcentaje_cc") fa.porcentaje_cc_base = null;
+    if (colKey === "tipo_pago") {
+      const t = String(nuevoValor).toLowerCase();
+      if (t === "cc" || t === "mixto") {
+        if (!fa.porcentaje_cc && fa.porcentaje_cc_original) {
+          fa.porcentaje_cc = formatearNumero(fa.valor_servicio * (fa.porcentaje_cc_original / 100));
+          fa.porcentaje_cc_base = fa.porcentaje_cc_original;
+        }
+      }
+      if (t === "cash") {
+        fa.porcentaje_cc = 0;
+        fa.porcentaje_cc_base = fa.porcentaje_cc_original;
+      }
+    }
+    return CAMPOS_RECALCULAN.includes(colKey) ? procesarData({ ...fa }) : fa;
   }, []);
 
-  const toggleSeleccionTodos = () => {
-    setElementosAEliminar(
-      elementosAEliminar.length === listRegistro.length
-        ? []
-        : [...listRegistro],
-    );
-  };
+  const prepararPegado = useCallback((r) => {
+    const p = procesarData({ ...r });
+    return {
+      id: crypto.randomUUID(),
+      id_registro: null,
+      id_tecnico: p.id_tecnico ?? null,
+      nombre,
+      semana,
+      job: p.job ?? "",
+      job_name: p.job_name ?? "",
+      valor_servicio: p.valor_servicio ?? 0,
+      porcentaje_tecnico: p.porcentaje_tecnico ?? 0,
+      minimo: p.minimo ?? 0,
+      opciones_pago: p.opciones_pago ?? [],
+      tipo_pago: p.tipo_pago ?? "CASH",
+      valor_tarjeta: p.valor_tarjeta ?? 0,
+      valor_efectivo: p.valor_efectivo ?? 0,
+      porcentaje_cc: p.porcentaje_cc ?? 0,
+      partes_gil: p.partes_gil ?? 0,
+      partes_tecnico: p.partes_tecnico ?? 0,
+      tech: p.tech ?? 0,
+      subtotal: p.subtotal ?? 0,
+      total: p.total ?? 0,
+      is_cash: p.is_cash ?? false,
+      adicional_dolar: p.adicional_dolar ?? 0,
+      notas: p.notas ?? [],
+    };
+  }, [nombre, semana]);
 
+  const buildCreatePayload = useCallback((rows) => rows, []);
+  const buildUpdatePayload = useCallback((rows) => rows.map((r) => ({ ...r, id: r.id_registro })), []);
+
+  const services = useMemo(() => ({
+    crear: (payload) => envioTablaDB(payload, semana),
+    bulkUpdate: (payload) => bulkUpdateRegistros(payload),
+    eliminar: (rows) => eliminarRegistrosDb(rows.filter((r) => r.id_registro)),
+  }), [semana]);
+
+  const engine = useTablaEditable({
+    registros: listRegistro,
+    setRegistros: setListRegistros,
+    columnas: columnasTablaGeneral,
+    editarCelda,
+    prepararPegado,
+    camposComparar: CAMPOS_COMPARAR,
+    buildCreatePayload,
+    buildUpdatePayload,
+    services,
+    onError: setError,
+  });
+
+  const { state: eState, handlers: eHandlers } = engine;
+
+  // ── Alta desde el formulario (validación + diferido) ───────────────
   const handleBtnAgregar = async () => {
     const rowLimpio = { ...rowData };
-
     const camposNumericos = [
-      "valor_servicio",
-      "valor_tarjeta",
-      "valor_efectivo",
-      "partes_gil",
-      "partes_tecnico",
-      "tech",
-      "porcentaje_cc",
-      "porcentaje_tecnico",
-      "adicional_dolar",
-      "subtotal",
-      "total",
+      "valor_servicio", "valor_tarjeta", "valor_efectivo", "partes_gil",
+      "partes_tecnico", "tech", "porcentaje_cc", "porcentaje_tecnico",
+      "adicional_dolar", "subtotal", "total",
     ];
     camposNumericos.forEach((campo) => {
-      if (rowLimpio[campo] === "" || rowLimpio[campo] == null) {
-        rowLimpio[campo] = 0;
-      }
+      if (rowLimpio[campo] === "" || rowLimpio[campo] == null) rowLimpio[campo] = 0;
     });
-
     if (rowLimpio.tipo_pago?.toLowerCase() !== "mixto") {
       rowLimpio.valor_tarjeta = 0;
       rowLimpio.valor_efectivo = 0;
@@ -147,42 +190,15 @@ export function useRegistroActions({
       }
     }
 
-    setListRegistros((prev) => [rowCopy, ...prev]);
+    engine.agregarFila(rowCopy);
     setRow(procesarDatosTecnico(data[0]));
-
-    try {
-      const res = await envioTablaDB([rowCopy], semana);
-      const idReal = res?.registros?.[0]?.id;
-
-      if (idReal) {
-        setListRegistros((prev) =>
-          prev.map((r) =>
-            r.id === rowCopy.id ? { ...r, id_registro: idReal } : r,
-          ),
-        );
-      }
-    } catch (err) {
-      console.error("Error guardando:", err);
-      setListRegistros((prev) => prev.filter((r) => r.id !== rowCopy.id));
-      openModal("ERROR_GUARDADO");
-    }
-  };
-
-  const eliminarSeleccionados = async () => {
-    setListRegistros(
-      listRegistro.filter((d) => !elementosAEliminar.includes(d)),
-    );
-    await eliminarRegistrosDb(elementosAEliminar.filter((d) => d.id_registro));
-    setElementosAEliminar([]);
   };
 
   const finalizarTabla = async () => {
     closeModal();
     setLoading(true);
     try {
-      const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(
-        () => [],
-      );
+      const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(() => []);
       const dataPreviaProcesada = registrosPrevios.flatMap((dato) => {
         const tecnicoMatch = data.find(
           (t) => t.job.replace(/\s+/g, "") === dato.job.replace(/\s+/g, ""),
@@ -214,11 +230,7 @@ export function useRegistroActions({
         openModal("SIN_REGISTROS");
         return;
       }
-      const response = await exportarExcelDBPost(
-        registrosGuardados,
-        nombre,
-        semana,
-      );
+      const response = await exportarExcelDBPost(registrosGuardados, nombre, semana);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -233,102 +245,6 @@ export function useRegistroActions({
       setLoading(false);
     }
   };
-
-  const actualizarCeldaRegistro = useCallback(
-    (id_registro, colKey, nuevoValor) => {
-      marcarCambio(id_registro);
-      setListRegistros((prev) => {
-        const copia = [...prev];
-        const realIndex = copia.findIndex((r) => r.id_registro === id_registro);
-        if (realIndex === -1) return prev;
-
-        const filaActual = copia[realIndex];
-        let filaActualizada = { ...filaActual, [colKey]: nuevoValor };
-
-        if (colKey === "tipo_pago" && nuevoValor.toLowerCase() !== "mixto") {
-          filaActualizada.valor_tarjeta = 0;
-          filaActualizada.valor_efectivo = 0;
-        }
-
-        if (
-          (colKey === "valor_tarjeta" || colKey === "valor_efectivo") &&
-          filaActualizada.tipo_pago?.toLowerCase() !== "mixto"
-        ) {
-          filaActualizada[colKey] = 0;
-        }
-
-        if (colKey === "porcentaje_cc") {
-          filaActualizada.porcentaje_cc_base = null;
-        }
-
-        if (colKey === "tipo_pago") {
-          const nuevoTipo = nuevoValor.toLowerCase();
-          if (nuevoTipo === "cc" || nuevoTipo === "mixto") {
-            if (
-              !filaActualizada.porcentaje_cc &&
-              filaActualizada.porcentaje_cc_original
-            ) {
-              filaActualizada.porcentaje_cc = formatearNumero(
-                filaActualizada.valor_servicio *
-                  (filaActualizada.porcentaje_cc_original / 100),
-              );
-              filaActualizada.porcentaje_cc_base =
-                filaActualizada.porcentaje_cc_original;
-            }
-          }
-          if (nuevoTipo === "cash") {
-            filaActualizada.porcentaje_cc = 0;
-            filaActualizada.porcentaje_cc_base =
-              filaActualizada.porcentaje_cc_original;
-          }
-        }
-
-        const camposQueRecalculan = [
-          "valor_servicio",
-          "valor_efectivo",
-          "valor_tarjeta",
-          "partes_gil",
-          "partes_tecnico",
-          "tech",
-          "tipo_pago",
-          "aplica_dolar_empresa",
-          "adicional_dolar",
-          "porcentaje_tecnico",
-          "porcentaje_cc",
-          "is_cash",
-        ];
-
-        const filaFinal = camposQueRecalculan.includes(colKey)
-          ? procesarData({ ...filaActualizada })
-          : filaActualizada;
-
-        copia[realIndex] = filaFinal;
-        return copia;
-      });
-    },
-    [marcarCambio, setListRegistros],
-  );
-
-  const guardarCambios = useCallback(async () => {
-    if (!haycambiosPendientes) return;
-    const ids = getIdsModificados();
-    const registrosConId = listRegistroRef.current.filter(
-      (r) => r.id_registro && ids.has(r.id_registro),
-    );
-    if (!registrosConId.length) return;
-
-    setGuardando(true);
-    try {
-      const payload = registrosConId.map((r) => ({ ...r, id: r.id_registro }));
-      await bulkUpdateRegistros(payload);
-      confirmarGuardado();
-    } catch (err) {
-      console.error("Error guardando:", err);
-      openModalRef.current("ERROR_GUARDADO");
-    } finally {
-      setGuardando(false);
-    }
-  }, [confirmarGuardado, haycambiosPendientes, getIdsModificados]);
 
   const procesarMensaje = (result) => {
     try {
@@ -348,23 +264,18 @@ export function useRegistroActions({
           }
         }
 
-        if (result.valor_servicio)
-          newRow.valor_servicio = result.valor_servicio;
-        if (result.valor_efectivo)
-          newRow.valor_efectivo = result.valor_efectivo;
+        if (result.valor_servicio) newRow.valor_servicio = result.valor_servicio;
+        if (result.valor_efectivo) newRow.valor_efectivo = result.valor_efectivo;
         if (result.valor_tarjeta) newRow.valor_tarjeta = result.valor_tarjeta;
         if (result.parts_tecnico) newRow.partes_tecnico = result.parts_tecnico;
         if (result.parts_gil) newRow.partes_gil = result.parts_gil;
+        if (result.tech) newRow.tech = result.tech;
         if (result.tipo_pago) newRow.tipo_pago = result.tipo_pago.toUpperCase();
 
         if (data.length > 1 && found) {
-          return actualizarPorcentajeCC(
-            procesarDatosTecnico([found], newRow, true)[0],
-          );
+          return actualizarPorcentajeCC(procesarDatosTecnico([found], newRow, true)[0]);
         }
-        return actualizarPorcentajeCC(
-          procesarDatosTecnico(data, newRow, true)[0],
-        );
+        return actualizarPorcentajeCC(procesarDatosTecnico(data, newRow, true)[0]);
       });
     } catch (err) {
       console.error(err);
@@ -372,53 +283,33 @@ export function useRegistroActions({
     }
   };
 
-  // ── Drag select (highlight amarillo) ──────────────────────
-  const {
-    seleccionCopiable,
-    iniciarDrag,
-    extenderDrag,
-    limpiarSeleccion,
-    scrollRef,
-  } = useDragSelect(listRegistro);
-
-  // ── Clipboard (Ctrl+C, Ctrl+V, pegar) ────────────────────
-  const { copiar, pegar, clipboardRegistros, hayClipboard } =
-    useClipboardActions({
-      listaVisible: listRegistro,
-      seleccionCopiable,
-      limpiarSeleccion,
-      semana,
-      idTecnico,
-      nombre,
-      setListRegistros,
-    });
-
   return {
-    elementosAEliminar,
-    toggleSeleccion,
-    toggleSeleccionTodos,
+    elementosAEliminar: eState.elementosAEliminar,
+    toggleSeleccion: eHandlers.toggleSeleccion,
+    toggleSeleccionTodos: eHandlers.toggleSeleccionTodos,
     columnasTablaEditable,
     columnasTablaGeneral,
     handleBtnAgregar,
-    eliminarSeleccionados,
+    eliminarSeleccionados: eHandlers.eliminarSeleccionados,
     finalizarTabla,
     clickExportExcel,
     exportarExcelDB,
-    actualizarCeldaRegistro,
+    actualizarCeldaRegistro: eHandlers.actualizarCeldaRegistro,
     procesarMensaje,
-    guardarCambios,
-    revertirCambios,
-    haycambiosPendientes,
-    guardando,
+    guardarCambios: engine.guardar,
+    revertirCambios: engine.deshacer,
+    rehacer: engine.rehacer,
+    haycambiosPendientes: engine.hayPendientes,
+    guardando: engine.guardando,
     confirmacionRef,
-    // ── clipboard ──
-    seleccionCopiable,
-    iniciarDrag,
-    extenderDrag,
-    copiar,
-    pegar,
-    hayClipboard,
-    clipboardRegistros,
-    scrollRef,
+    // ── clipboard / selección (del motor) ──
+    seleccionCopiable: undefined,
+    iniciarDrag: eHandlers.iniciarDrag,
+    extenderDrag: eHandlers.extenderDrag,
+    copiar: eHandlers.copiar,
+    pegar: eHandlers.pegar,
+    hayClipboard: eState.hayClipboard,
+    clipboardRegistros: eState.clipboardRegistros,
+    scrollRef: eHandlers.scrollRef,
   };
 }

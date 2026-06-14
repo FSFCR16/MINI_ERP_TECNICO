@@ -8,6 +8,14 @@ import { ModalAutoMessage } from './messageModal.jsx'
 import { ModalCamposFaltantes } from './modalCamposFatantes.jsx'
 import { ContentJobDuplicado } from "./ContentJobDuplicado.jsx"
 import { getModalEntry } from './config_modal.jsx'
+import { NotasPanel } from '@/Components/NotasPanel.jsx'
+import { listarNotas, seedNotas, crearNota, actualizarNota, eliminarNota } from '@/Services/tencicosServices'
+
+// Servicios de notas del general (estable)
+const notasServicesGeneral = {
+    listar: listarNotas, seed: seedNotas, crear: crearNota,
+    actualizar: actualizarNota, eliminar: eliminarNota,
+}
 
 export function ModalManager({
     modal,
@@ -21,6 +29,7 @@ export function ModalManager({
     setError,
     setLoading,
     nombre,
+    semana,
     procesarMensaje,
     setResultadoParcial,
     setCamposFaltantes,
@@ -54,6 +63,15 @@ export function ModalManager({
                         leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
                     >
                         <DialogPanel className="w-full max-w-md bg-white/80 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/40">
+                            {modal.tipo === "NOTAS" && (
+                                <NotasPanel
+                                    nombre={nombre}
+                                    semana={semana}
+                                    defaults={Array.isArray(notas) ? notas : []}
+                                    services={notasServicesGeneral}
+                                    onClose={closeModal}
+                                />
+                            )}
                             {entrada?.modalRender === 1 && (
                                 <ContentNoList
                                     message={entrada.message}
@@ -66,7 +84,7 @@ export function ModalManager({
                                     showBtn={entrada?.showBtn}
                                 />
                             )}
-                            {entrada?.modalRender === 2 && (
+                            {entrada?.modalRender === 2 && modal.tipo !== "NOTAS" && (
                                 <ContentList
                                     message={entrada.message}
                                     title={entrada?.title}

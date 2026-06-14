@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket
+from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket, historialTodos, semanasRecientesController
 from app.schemmas import TrabajoCreateSchema,TrabajoSchema,UpdateRegistroSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
@@ -45,9 +45,18 @@ async def parsearMensaje(body: dict):
 async def envioRegistrosRoute(body: EnvioRegistrosBody, db: Session = Depends(get_db)):
     return envioRegistrosDB(body.registros, db, body.semana)
 
+@router.get("/historial-todos")
+async def getHistorialTodos(db: Session = Depends(get_db)):
+    return historialTodos(db)
+
+
 @router.get("/historial-semanas")
 async def obtenerSemanasRoute(db: Session = Depends(get_db)):
     return obtenerSemanasDisponibles(db)
+
+@router.get("/semanas-recientes")
+async def semanasRecientesRoute(n: int = 8):
+    return semanasRecientesController(n)
 
 @router.post("/historial-semana-tecnicos")
 async def historialSemanaTecnicosRoute(

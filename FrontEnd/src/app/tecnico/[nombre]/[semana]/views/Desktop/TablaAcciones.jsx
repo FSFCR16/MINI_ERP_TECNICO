@@ -37,7 +37,7 @@ export const TablaAcciones = memo(function TablaAcciones({ handlers, modal, hayc
                     className="flex items-center gap-1.5 px-5 py-2 text-sm rounded-xl bg-white/60 backdrop-blur-xl border border-white/50 text-amber-600 font-semibold shadow-sm hover:bg-white/80 active:scale-95 transition-all duration-200 cursor-pointer"
                     onClick={() => stableOpenModal("NOTAS")}
                 >
-                    📝 Notas
+                    Notas
                 </button>
 
                 <button

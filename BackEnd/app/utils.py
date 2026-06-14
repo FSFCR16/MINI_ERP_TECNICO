@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import re
 import pandas as pd
 from io import BytesIO
 from openpyxl import load_workbook
@@ -72,6 +73,41 @@ def obtener_rango_semana():
     fecha_fin = fecha_inicio + timedelta(days=6)
 
     return fecha_inicio, fecha_fin
+
+
+def datos_semana_desde_label(semana_label: str):
+    """Parsea una etiqueta '2026_06_semana_24' y devuelve
+    (label, año, num_semana, fecha_inicio, fecha_fin) anclando el lunes
+    con el año ISO + número de semana. None si la etiqueta es inválida."""
+    m = re.match(r"^(\d+)_(\d+)_semana_(\d+)$", semana_label or "")
+    if not m:
+        return None
+    anio = int(m.group(1))
+    num = int(m.group(3))
+    try:
+        lunes = date.fromisocalendar(anio, num, 1)
+    except ValueError:
+        return None
+    fin = lunes + timedelta(days=6)
+    return semana_label, anio, num, lunes, fin
+
+
+def semanas_recientes(n: int = 8):
+    """Últimas n semanas ANTERIORES a la actual (sin incluir la actual),
+    con etiqueta canónica y rango lunes-domingo en ISO (YYYY-MM-DD)."""
+    hoy = date.today()
+    lunes_actual = hoy - timedelta(days=hoy.weekday())
+    out = []
+    for i in range(1, n + 1):
+        lunes = lunes_actual - timedelta(weeks=i)
+        iso = lunes.isocalendar()
+        label = f"{iso[0]}_{lunes.month:02d}_semana_{iso[1]}"
+        out.append({
+            "label": label,
+            "fecha_inicio": lunes.isoformat(),
+            "fecha_fin": (lunes + timedelta(days=6)).isoformat(),
+        })
+    return out
 
 def construcionTablaResultado(df):
     df.columns = df.columns.str.upper()

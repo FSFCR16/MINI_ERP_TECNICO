@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Trabajo, SemanaTecnico,registrosSchemma
-from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel
+from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel, datos_semana_desde_label, semanas_recientes
 from app.schemmas import TrabajoSchema,TecnicoRequest,UpdateRegistroSchema,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
 from datetime import date, timedelta
 from typing import List
@@ -26,21 +26,18 @@ def obtener_nombres(db: Session):
 def validarTecnicoSemana(db: Session, semana_label: str = None):
     label_actual, year, numSemana = semana_actual()
     fecha_inicio, fecha_fin = obtener_rango_semana()
-    print(f"semana_label: {semana_label}")
-    print(f"label_actual: {label_actual}")
-    # 🔹 CASO 1: Viene label
-    if semana_label:
-        registro = db.query(SemanaTecnico).filter(
-            SemanaTecnico.semana == semana_label
-        ).first()
 
-        if registro:
-            return registro
+    objetivo = semana_label or label_actual
 
-        if semana_label != label_actual:
-            raise HTTPException(status_code=404, detail="Semana no encontrada")
+    # Si ya existe, se devuelve
+    registro = db.query(SemanaTecnico).filter(
+        SemanaTecnico.semana == objetivo
+    ).first()
+    if registro:
+        return registro
 
-        # ↓ SOLO ESTO CAMBIA
+    # 🔹 Crear la semana ACTUAL
+    if objetivo == label_actual:
         try:
             registro = SemanaTecnico(
                 year_num=year, numero_semana=numSemana, semana=label_actual,
@@ -54,19 +51,17 @@ def validarTecnicoSemana(db: Session, semana_label: str = None):
             db.rollback()
             return db.query(SemanaTecnico).filter(SemanaTecnico.semana == label_actual).first()
 
-    # 🔹 CASO 2: NO viene label
-    registro = db.query(SemanaTecnico).filter(
-        SemanaTecnico.semana == label_actual
-    ).first()
-
-    if registro:
-        return registro
-
-    # ↓ SOLO ESTO CAMBIA
+    # 🔹 Crear una semana ANTERIOR a la actual (solo pasadas)
+    datos = datos_semana_desde_label(objetivo)
+    if not datos:
+        raise HTTPException(status_code=400, detail="Etiqueta de semana inválida")
+    _, anio_l, num_l, ini_l, fin_l = datos
+    if ini_l >= fecha_inicio:
+        raise HTTPException(status_code=400, detail="Solo se pueden crear semanas anteriores a la actual")
     try:
         registro = SemanaTecnico(
-            year_num=year, numero_semana=numSemana, semana=label_actual,
-            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
+            year_num=anio_l, numero_semana=num_l, semana=objetivo,
+            fecha_inicio=ini_l, fecha_fin=fin_l
         )
         db.add(registro)
         db.commit()
@@ -74,7 +69,11 @@ def validarTecnicoSemana(db: Session, semana_label: str = None):
         return registro
     except IntegrityError:
         db.rollback()
-        return db.query(SemanaTecnico).filter(SemanaTecnico.semana == label_actual).first()
+        return db.query(SemanaTecnico).filter(SemanaTecnico.semana == objetivo).first()
+
+
+def semanasRecientesController(n: int = 8):
+    return semanas_recientes(n)
 
 def traerInformacionTecnico(db: Session, nombre: str):
 
@@ -192,7 +191,44 @@ def obtenerHistorialTenico(nombre:str,db: Session):
         for row in resumen
     ]
 
-    
+
+def historialTodos(db: Session):
+    """Todos los técnicos-semana del general (para el dashboard unificado)."""
+    resumen = (
+        db.query(
+            registrosSchemma.nombre,
+            SemanaTecnico.semana,
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin,
+            SemanaTecnico.id.label("semana_id"),
+            func.sum(registrosSchemma.total).label("total"),
+            func.count(registrosSchemma.id).label("total_registros"),
+        )
+        .join(SemanaTecnico, registrosSchemma.semana_id == SemanaTecnico.id)
+        .group_by(
+            registrosSchemma.nombre,
+            SemanaTecnico.id,
+            SemanaTecnico.semana,
+            SemanaTecnico.fecha_inicio,
+            SemanaTecnico.fecha_fin,
+        )
+        .order_by(SemanaTecnico.fecha_inicio.desc(), registrosSchemma.nombre.asc())
+        .all()
+    )
+    return [
+        {
+            "nombre": row.nombre,
+            "semana_id": row.semana_id,
+            "semana": row.semana,
+            "fecha_inicio": row.fecha_inicio,
+            "fecha_fin": row.fecha_fin,
+            "total": row.total,
+            "total_registros": row.total_registros,
+        }
+        for row in resumen
+    ]
+
+
 def eliminarRegistros(registros: List[SemanaTecnicoSchemaFront], db: Session):
 
     try:
@@ -425,8 +461,9 @@ Devuelve SOLO un JSON válido. Sin texto extra, sin markdown, sin explicaciones.
 Un número ES dinero relevante SOLO si cumple alguna de estas condiciones:
 1. Está acompañado de contexto de cash (cash, efectivo)
 2. Está acompañado de contexto de crédito (cc, card, credit, scanpay, zelle)
-3. Está acompañado de contexto de partes (parts, ccf, parts gil, p)
-4. Por el contexto del mensaje parece ser el valor final del servicio
+3. Está acompañado de contexto de partes (parts, ccf, parts gil, parts company, p)
+4. Está acompañado de contexto de pago al técnico (to tech, to technician, for tech)
+5. Por el contexto del mensaje parece ser el valor final del servicio
 
 Si un número NO cumple ninguna — ignorarlo completamente.
 
@@ -436,6 +473,13 @@ PARTES (NO son el valor del servicio, nunca se suman):
 - "10p" o "50p" o "$50p" → parts_tecnico=ese número, es la letra p pegada al número
 - "parts gil"      → parts_gil=ese valor
 - "10$ ccf"        → parts_gil=10
+- "parts company", "part company", "company parts", "parte company" → parts_gil=ese valor
+  (todo lo que sea "company" o "gil" en contexto de partes va a parts_gil)
+
+PAGO AL TÉCNICO (tech) — dinero asignado directamente al técnico, NO es parte ni servicio:
+- "100$ to tech", "to technician 100", "for tech 100", "para el tecnico 100" → tech=100
+- Es independiente del valor del servicio y de las partes; NUNCA se suma a valor_servicio.
+- Si no aparece → tech=0
 
 TIPO DE PAGO — solo 3 valores posibles: "CASH", "CC", "MIXTO":
 - Variantes de CASH: cash, efectivo
@@ -484,7 +528,8 @@ VALOR CON TARJETA (valor_tarjeta):
   "tipo_pago":             "CASH | CC | MIXTO",
   "parts_tecnico":         número o 0,
   "parts_tecnico_nombre":  "nombre del técnico | 0",
-  "parts_gil":             número o 0
+  "parts_gil":             número o 0,
+  "tech":                  número o 0
 }
 """
  

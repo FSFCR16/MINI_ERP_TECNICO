@@ -87,6 +87,9 @@ class infoSemana(BaseModel):
 
 class SemanaBody(BaseModel):
     semana: Optional[str] = None  # si viene None, usa la actual
+
+class CrearSemanaBody(BaseModel):
+    fecha: date  # cualquier fecha; se encuadra a su semana ISO (lunes-domingo)
 # En schemmas.py añade esto
 
 class EnvioRegistrosBody(BaseModel):

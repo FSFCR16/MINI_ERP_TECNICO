@@ -258,9 +258,13 @@ function mixto(params) {
   }
 
   const valorCash = cash(cashParams)
-  console.log(valorCash, "cash")
-  const valorCC = CC(ccParams)
-  console.log(valorCC)
+
+  // CC como cash: la pata de tarjeta usa la MISMA lógica que ccComoCash (se procesa como
+  // cash → positivo), porque esa plata la tiene el técnico y se la debe a Gil.
+  // NUNCA puede quedar negativa (eso sería "Gil le debe al técnico", lo contrario a lo real).
+  const valorCC = params.is_cash === true
+    ? ccComoCash({ ...ccParams, valor_servicio: params.valor_tarjeta })
+    : CC(ccParams)
 
   return {
     ...params,

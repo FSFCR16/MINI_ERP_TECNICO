@@ -33,6 +33,12 @@ export const traerTecnicosSemana = (semana) =>
 export const traerSemanas = () =>
     api.get("/api/historial-semanas")
 
+export const semanasRecientes = (n = 8) =>
+    api.get(`/api/semanas-recientes?n=${n}`)
+
+export const traerHistorialTodos = () =>
+    api.get("/api/historial-todos")
+
 export const eliminarSemana = (semana_id) =>
     api.delete("/api/delete-historial-semana", { semana_id })
 
@@ -62,3 +68,19 @@ export const validarJobDuplicado = (job_name) =>
 
 export const bulkUpdateRegistros = (registros) =>
     api.put("/api/bulk-update-registros", registros)
+
+// ── Notas ───────────────────────────────────────
+export const listarNotas = (nombre, semana) =>
+    api.get(`/api/notas/${encodeURIComponent(nombre)}/${semana}`)
+
+export const seedNotas = (nombre, semana, notas) =>
+    api.post("/api/notas/seed", { nombre, semana, notas })
+
+export const crearNota = (nombre, semana, texto, orden = 0) =>
+    api.post("/api/notas", { nombre, semana, texto, orden })
+
+export const actualizarNota = (id, texto) =>
+    api.put(`/api/notas/${id}`, { texto })
+
+export const eliminarNota = (id) =>
+    api.delete(`/api/notas/${id}`)

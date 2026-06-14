@@ -1,6 +1,8 @@
 from fastapi import FastAPI,Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import router
+from app.routes_virginia import router as router_virginia
+from app.routes_notas import router as router_notas
 from app.db import SessionLocal, Base, engine
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
@@ -23,8 +25,10 @@ origins = ["*"]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False, 
                    allow_methods=["GET","POST","PUT","DELETE","OPTIONS"], allow_headers=["*"])
 
-### RUTAS 
+### RUTAS
 app.include_router(router)
+app.include_router(router_virginia)
+app.include_router(router_notas)
 
 ### MANEJO DE ERRORES
 @app.exception_handler(HTTPException)

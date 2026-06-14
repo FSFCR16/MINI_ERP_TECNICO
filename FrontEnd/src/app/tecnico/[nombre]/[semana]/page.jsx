@@ -96,37 +96,12 @@ export default function Page() {
         openModal, openError, closeModal,
     })
 
-    // Refs para shortcuts (se mantienen igual)
-    const guardarCambiosRef = useRef(guardarCambios)
-    useEffect(() => { guardarCambiosRef.current = guardarCambios }, [guardarCambios])
-
-    const revertirCambiosRef = useRef(revertirCambios)
-    useEffect(() => { revertirCambiosRef.current = revertirCambios }, [revertirCambios])
-
-    const guardandoRef2 = useRef(guardando)
-    useEffect(() => { guardandoRef2.current = guardando }, [guardando])
-
     // Resize listener
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768)
         handleResize()
         window.addEventListener("resize", handleResize)
         return () => window.removeEventListener("resize", handleResize)
-    }, [])
-
-    // Shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            const isS = (e.ctrlKey || e.metaKey) && e.key === "s"
-            const isZ = (e.ctrlKey || e.metaKey) && e.key === "z"
-            if (!isS && !isZ) return
-            e.preventDefault()
-            e.stopImmediatePropagation()
-            if (isS) guardarCambiosRef.current()
-            if (isZ) revertirCambiosRef.current(guardandoRef2.current)
-        }
-        document.addEventListener("keydown", handleKeyDown, true)
-        return () => document.removeEventListener("keydown", handleKeyDown, true)
     }, [])
 
     // --- BLOQUE DE MEMOIZACIÓN DE PROPS ---
@@ -217,6 +192,7 @@ export default function Page() {
                 setError={setError}
                 setLoading={setLoading}
                 nombre={nombre}
+                semana={semana}
                 procesarMensaje={procesarMensaje}
                 setResultadoParcial={setResultadoParcial}
                 setCamposFaltantes={setCamposFaltantes}

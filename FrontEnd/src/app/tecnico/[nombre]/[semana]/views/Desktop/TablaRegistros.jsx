@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { formatearNumero } from '../../../../../../Utils/api.js'
 import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 // ── FIX 1: importar el selector estable en lugar del store completo
-import { useSeleccionStore, useEsSeleccionada } from '../../../../../../app/stores/useClipboardStore.js'
+import { useSeleccionStore, useEsSeleccionada, useLimpiarClipboard } from '../../../../../../app/stores/useClipboardStore.js'
 
 export const FilaRegistro = memo(function FilaRegistro({
     row,
@@ -157,6 +157,8 @@ export const FilaRegistro = memo(function FilaRegistro({
 
 export function TablaRegistros({ state, handlers, nav }) {
 
+    const limpiarClipboard = useLimpiarClipboard()
+
     const {
         listRegistro,
         elementosAEliminar,
@@ -284,21 +286,31 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                 <div className="flex items-center gap-2 shrink-0">
                     {hayClipboard && (
-                        <button
-                            onClick={pegar}
-                            className="group flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-xl
-                                       bg-indigo-500 text-white border border-indigo-400
-                                       hover:bg-indigo-600 active:scale-95 transition-all duration-150 shadow-sm"
-                        >
-                            <svg className="w-3.5 h-3.5 opacity-80" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/>
-                                <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5-.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
-                            </svg>
-                            Pegar
-                            <span className="bg-indigo-400/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                                {clipboardRegistros.length}
-                            </span>
-                        </button>
+                        <div className="flex items-center rounded-xl bg-indigo-500 border border-indigo-400 shadow-sm overflow-hidden">
+                            <button
+                                onClick={pegar}
+                                className="group flex items-center gap-1.5 pl-3 pr-2 py-1.5 text-[11px] font-semibold
+                                           text-white hover:bg-indigo-600 active:scale-95 transition-all duration-150"
+                            >
+                                <svg className="w-3.5 h-3.5 opacity-80" viewBox="0 0 16 16" fill="currentColor">
+                                    <path d="M4 1.5H3a2 2 0 00-2 2V14a2 2 0 002 2h10a2 2 0 002-2V3.5a2 2 0 00-2-2h-1v1h1a1 1 0 011 1V14a1 1 0 01-1 1H3a1 1 0 01-1-1V3.5a1 1 0 011-1h1v-1z"/>
+                                    <path d="M9.5 1a.5.5 0 01.5.5v1a.5.5 0 01-.5-.5h-3a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h3zm-3-1A1.5 1.5 0 005 1.5V2H3.5A1.5 1.5 0 002 3.5v11A1.5 1.5 0 003.5 16h9a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0012.5 2H11v-.5A1.5 1.5 0 009.5 0h-3z"/>
+                                </svg>
+                                Pegar
+                                <span className="bg-indigo-400/50 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                                    {clipboardRegistros.length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={limpiarClipboard}
+                                title="Vaciar lo copiado"
+                                className="flex items-center justify-center w-7 py-1.5 text-white/80 border-l border-indigo-400/60 hover:bg-indigo-600 active:scale-95 transition-all duration-150"
+                            >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                     )}
 
                     {elementosAEliminar.length > 0 && (
