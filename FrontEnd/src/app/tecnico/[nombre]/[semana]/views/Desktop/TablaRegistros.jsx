@@ -369,11 +369,12 @@ export function TablaRegistros({ state, handlers, nav }) {
 
                     <tbody>
                         {listaVisible.map((row, indexrow) => {
-                            const marcadoParaEliminar = elementosAEliminar.some(e => e.id_registro === row.id_registro)
-                            // ── FIX 4: estaGuardando como boolean estable, no depende de indexrow
-                            // Si guardando es un objeto por id en vez de por índice, esto no cambia
-                            // aunque la lista se reordene
-                            const estaGuardando = !!guardando?.[indexrow]
+                            // Comparar por id ÚNICO (id_registro ?? id). Antes se comparaba solo
+                            // por id_registro, y como las filas nuevas tienen id_registro=null,
+                            // null===null hacía que seleccionar una marcara TODAS las nuevas.
+                            const marcadoParaEliminar = elementosAEliminar.some(e => (e.id_registro ?? e.id) === (row.id_registro ?? row.id))
+                            // estaGuardando: por índice (legacy) o por la marca optimista de la fila
+                            const estaGuardando = !!guardando?.[indexrow] || !!row._guardando
 
                             return (
                                 <FilaRegistro

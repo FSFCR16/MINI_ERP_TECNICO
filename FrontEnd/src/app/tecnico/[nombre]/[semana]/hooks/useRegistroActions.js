@@ -190,8 +190,9 @@ export function useRegistroActions({
       }
     }
 
-    engine.agregarFila(rowCopy);
-    setRow(procesarDatosTecnico(data[0]));
+    // Alta inmediata: se guarda en la DB al instante (optimista, con rollback si falla).
+    const ok = await engine.agregarFilaInmediato(rowCopy);
+    if (ok) setRow(procesarDatosTecnico(data[0]));
   };
 
   const finalizarTabla = async () => {

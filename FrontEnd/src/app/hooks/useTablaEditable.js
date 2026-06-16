@@ -142,6 +142,49 @@ export function useTablaEditable(cfg) {
         aplicar([local, ...registrosRef.current])
     }, [aplicar])
 
+    // Alta INMEDIATA (optimista): inserta la fila al instante y la persiste en la
+    // DB por debajo. Si el guardado falla, hace ROLLBACK (la quita) y avisa.
+    // A diferencia de `agregarFila` (diferido), NO entra al historial Ctrl+Z y,
+    // al confirmarse, la fila pasa al baseline para que ediciones posteriores se
+    // diff-een correctamente. Devuelve true/false según el resultado.
+    const agregarFilaInmediato = useCallback(async (fila) => {
+        const tempId = fila.id ?? crypto.randomUUID()
+        const local = { ...fila, id: tempId, id_registro: null, _guardando: true }
+
+        // 1) insert optimista (op local → no resetea baseline ni historial)
+        localOpRef.current = true
+        const conNueva = [local, ...registrosRef.current]
+        registrosRef.current = conNueva
+        setRegistros(conNueva)
+
+        try {
+            // 2) persistir por debajo
+            const res = await services.crear(buildCreatePayload([local]))
+            const nuevoId = res?.registros?.[0]?.id ?? null
+            const guardada = { ...local, id_registro: nuevoId, _guardando: false }
+
+            localOpRef.current = true
+            const finalLista = registrosRef.current.map((r) => (r.id === tempId ? guardada : r))
+            registrosRef.current = finalLista
+            setRegistros(finalLista)
+
+            // la fila ya guardada entra al baseline (deja de ser "pendiente")
+            baselineRef.current = [...(baselineRef.current ?? []), { ...guardada }]
+            sync(finalLista)
+            return true
+        } catch (e) {
+            // 3) rollback: quitar la fila optimista
+            console.error(e)
+            localOpRef.current = true
+            const sinNueva = registrosRef.current.filter((r) => r.id !== tempId)
+            registrosRef.current = sinNueva
+            setRegistros(sinNueva)
+            sync(sinNueva)
+            onError?.("No se pudo guardar el registro. Se quitó de la lista.")
+            return false
+        }
+    }, [services, buildCreatePayload, setRegistros, sync, onError])
+
     const copiar = useCallback(() => {
         const seleccion = useSeleccionStore.getState().seleccion
         if (seleccion.size === 0) return
@@ -248,7 +291,7 @@ export function useTablaEditable(cfg) {
 
     return {
         state, handlers, nav: navBundle,
-        agregarFila, guardar, deshacer, rehacer, limpiarClipboard,
+        agregarFila, agregarFilaInmediato, guardar, deshacer, rehacer, limpiarClipboard,
         guardando, ...meta,
     }
 }
