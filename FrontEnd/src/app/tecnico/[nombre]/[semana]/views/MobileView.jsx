@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { ordenarRegistros } from "@/Utils/api.js";
 import { useSeleccionStore } from "@/app/stores/useClipboardStore";
 import { MobileHeader } from "./Movil/MobileHeader";
 import { MobileFormulario } from "./Movil/MobileFormulario";
@@ -42,6 +43,7 @@ export function MobileView({
   const [expandido, setExpandido] = useState(null);
   const [editando, setEditando] = useState(null);
   const [registrosFiltrados, setRegistrosFiltrados] = useState(null);
+  const [orden, setOrden] = useState("recientes"); // "recientes" | "antiguos" | "id"
 
   const seleccionSize = useSeleccionStore(s => s.seleccion.size);
   const clipboardRegistros = useClipboardRegistros();
@@ -50,6 +52,8 @@ export function MobileView({
   const listaVisible = registrosFiltrados
     ? listRegistro.filter(r => registrosFiltrados.has(r.id_registro))
     : listRegistro;
+
+  const listaOrdenada = useMemo(() => ordenarRegistros(listaVisible, orden), [listaVisible, orden]);
 
   const toggleExpandido = (index) => {
     setExpandido(prev => {
@@ -99,6 +103,20 @@ export function MobileView({
         />
       )}
 
+      {listRegistro.length > 1 && (
+        <div className="inline-flex bg-white/60 dark:bg-slate-800/60 rounded-xl p-0.5 border border-white/50 dark:border-slate-700/60 w-fit">
+          {[["recientes", "Recientes"], ["antiguos", "Antiguos"], ["id", "Por ID"]].map(([k, l]) => (
+            <button
+              key={k}
+              onClick={() => setOrden(k)}
+              className={`px-3 py-1 text-[11px] rounded-lg font-medium transition cursor-pointer ${orden === k ? "bg-indigo-500 text-white shadow-sm" : "text-slate-500 dark:text-slate-300"}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {listaVisible.length === 0 && listRegistro.length > 0 && (
           <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-6">
@@ -106,7 +124,7 @@ export function MobileView({
           </p>
         )}
 
-        {listaVisible.map((row, index) => (
+        {listaOrdenada.map((row, index) => (
           <MobileCard
             key={row.id_registro ?? index}
             row={row}

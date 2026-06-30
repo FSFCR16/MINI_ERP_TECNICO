@@ -98,18 +98,40 @@ export function useTecnicoData(nombre, semana) {
       return;
     }
 
-    const dataMap = new Map();
+    // El vínculo registro↔contrato se cruza por tecnico_id (id del contrato,
+    // estable) y NO por el texto del job (mutable). Así, si un contrato se
+    // renombra (ej. TODO→LOCKOUT), los registros viejos no quedan huérfanos.
+    const contratoPorId = new Map();
+    const contratoPorJob = new Map();
     data.forEach((t) => {
-      const cleanJob = (t.job || "").replace(/\s+/g, "");
-      dataMap.set(cleanJob, t);
+      contratoPorId.set(t.id, t);
+      contratoPorJob.set((t.job || "").replace(/\s+/g, ""), t);
     });
 
     const procesados = rawRegistros.reduce((acc, dato) => {
-      const key = (dato.job || "").replace(/\s+/g, "");
-      const tecnicoMatch = dataMap.get(key);
-      if (tecnicoMatch) {
-        acc.push(...procesarDatosTecnico([tecnicoMatch], dato));
-      }
+      // 1) por id de contrato (estable)  2) por texto de job (legacy)
+      // 3) contrato borrado → pseudo-contrato desde el propio registro
+      const contrato =
+        contratoPorId.get(dato.tecnico_id) ??
+        contratoPorJob.get((dato.job || "").replace(/\s+/g, "")) ??
+        {
+          id: dato.tecnico_id,
+          nombre: dato.nombre,
+          job: dato.job,
+          porcentaje_tecnico: dato.porcentaje_tecnico ?? 0,
+          porcentaje_gil: 0,
+          adicional_dolar: 0,
+          minimo: 0,
+          porcentaje_cc: 0,
+          cargo_sabados: 0,
+          porcentaje_adicional_empresa: 0,
+        };
+
+      // Se fuerza el job del contrato al del registro para conservar la
+      // etiqueta y los valores del contrato viejo (ej. TODO). De lo contrario
+      // el guard de procesarDatosTecnico (job catálogo ≠ job registro)
+      // descartaría los valores guardados y pintaría la fila vacía.
+      acc.push(...procesarDatosTecnico([{ ...contrato, job: dato.job }], dato));
       return acc;
     }, []);
 

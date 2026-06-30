@@ -201,11 +201,26 @@ export function useRegistroActions({
     try {
       const registrosPrevios = await getRegistrosPrevios(nombre, semana).catch(() => []);
       const dataPreviaProcesada = registrosPrevios.flatMap((dato) => {
-        const tecnicoMatch = data.find(
-          (t) => t.job.replace(/\s+/g, "") === dato.job.replace(/\s+/g, ""),
-        );
-        if (!tecnicoMatch) return [];
-        return procesarDatosTecnico([tecnicoMatch], dato);
+        // Cruce por tecnico_id (id de contrato estable); fallback por texto de
+        // job (legacy); contrato borrado → pseudo-contrato desde el registro.
+        // Nunca se descarta un registro existente.
+        const contrato =
+          data.find((t) => t.id === dato.tecnico_id) ??
+          data.find((t) => t.job.replace(/\s+/g, "") === (dato.job || "").replace(/\s+/g, "")) ??
+          {
+            id: dato.tecnico_id,
+            nombre: dato.nombre,
+            job: dato.job,
+            porcentaje_tecnico: dato.porcentaje_tecnico ?? 0,
+            porcentaje_gil: 0,
+            adicional_dolar: 0,
+            minimo: 0,
+            porcentaje_cc: 0,
+            cargo_sabados: 0,
+            porcentaje_adicional_empresa: 0,
+          };
+        // Se conserva el job del registro (contrato viejo) para no perder sus valores.
+        return procesarDatosTecnico([{ ...contrato, job: dato.job }], dato);
       });
       setListRegistros(dataPreviaProcesada);
     } catch (error) {

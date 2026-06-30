@@ -300,6 +300,34 @@ export function formatearFechaSemana(fecha) {
   return fechaFormato
 }
 
+// Ordena (copia, no muta) los registros de la tabla por id_registro.
+// No hay fecha en las filas del front, pero el id es autoincremental → id mayor = más reciente.
+//   "recientes" → id desc (los aún sin guardar van primero, son lo más nuevo)
+//   "antiguos" / "id" → id asc (los aún sin guardar van al final)
+export function ordenarRegistros(lista, modo) {
+    if (!Array.isArray(lista) || !modo) return lista
+    const idNum = (r) => (r?.id_registro == null ? null : Number(r.id_registro))
+    const copia = [...lista]
+    if (modo === "recientes") {
+        copia.sort((a, b) => {
+            const ia = idNum(a), ib = idNum(b)
+            if (ia == null && ib == null) return 0
+            if (ia == null) return -1
+            if (ib == null) return 1
+            return ib - ia
+        })
+    } else { // "antiguos" | "id"
+        copia.sort((a, b) => {
+            const ia = idNum(a), ib = idNum(b)
+            if (ia == null && ib == null) return 0
+            if (ia == null) return 1
+            if (ib == null) return -1
+            return ia - ib
+        })
+    }
+    return copia
+}
+
 export function mapearErroresZod(error) {
     return error.issues.map(issue => ({
         label: issue.path[0].replaceAll("_", " ").toUpperCase(),

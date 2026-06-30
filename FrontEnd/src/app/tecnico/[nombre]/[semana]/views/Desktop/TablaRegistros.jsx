@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import { formatearNumero } from '../../../../../../Utils/api.js'
+import { formatearNumero, ordenarRegistros } from '../../../../../../Utils/api.js'
 import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 // ── FIX 1: importar el selector estable en lugar del store completo
 import { useSeleccionStore, useEsSeleccionada, useLimpiarClipboard } from '../../../../../../app/stores/useClipboardStore.js'
@@ -198,6 +198,7 @@ export function TablaRegistros({ state, handlers, nav }) {
     const numSeleccionados = useSeleccionStore(s => s.seleccion.size)
 
     const [idsFiltrados, setIdsFiltrados] = useState(null)
+    const [orden, setOrden] = useState("recientes")   // "recientes" | "antiguos" | "id"
     const [contextMenu, setContextMenu] = useState(null)
     const contextMenuRef = useRef(null)
     const [toastCopiado, setToastCopiado] = useState(false)
@@ -207,6 +208,8 @@ export function TablaRegistros({ state, handlers, nav }) {
     const listaVisible = idsFiltrados
         ? listRegistro.filter(r => idsFiltrados.has(r.id_registro))
         : listRegistro
+
+    const listaOrdenada = useMemo(() => ordenarRegistros(listaVisible, orden), [listaVisible, orden])
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -275,6 +278,22 @@ export function TablaRegistros({ state, handlers, nav }) {
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
                             {numSeleccionados} seleccionado{numSeleccionados !== 1 ? "s" : ""}
                         </span>
+                    )}
+
+                    {/* Ordenar registros */}
+                    {listRegistro.length > 1 && (
+                        <div className="inline-flex bg-white/50 rounded-lg p-0.5 border border-white/50 ml-1">
+                            {[["recientes", "Recientes"], ["antiguos", "Antiguos"], ["id", "Por ID"]].map(([k, l]) => (
+                                <button
+                                    key={k}
+                                    onClick={() => setOrden(k)}
+                                    title={`Ordenar: ${l}`}
+                                    className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition cursor-pointer ${orden === k ? "bg-indigo-500 text-white shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
+                                >
+                                    {l}
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
 
@@ -368,7 +387,7 @@ export function TablaRegistros({ state, handlers, nav }) {
                     </thead>
 
                     <tbody>
-                        {listaVisible.map((row, indexrow) => {
+                        {listaOrdenada.map((row, indexrow) => {
                             // Comparar por id ÚNICO (id_registro ?? id). Antes se comparaba solo
                             // por id_registro, y como las filas nuevas tienen id_registro=null,
                             // null===null hacía que seleccionar una marcara TODAS las nuevas.
