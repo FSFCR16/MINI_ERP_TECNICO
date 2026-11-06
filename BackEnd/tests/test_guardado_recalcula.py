@@ -109,3 +109,26 @@ def test_un_trabajo_de_antes_sin_lo_usado_toma_el_contrato_como_el_panel(contrat
     e = servicio_calculo.entrada(reg, db.get(Trabajo, contrato))
     assert (e["minimo"], e["adicional_dolar"], e["aplica_dolar_empresa"], e["is_cash"]) == (50, 2.5, "NO", False)
     db.close()
+
+
+def test_un_trabajo_de_antes_conserva_su_total_aunque_la_formula_de_otro(cliente, sesion, contrato):
+    """Caso real (V8JKE): CC como cash guardado sin la marca. Cambiarle el nombre no puede voltearle el total."""
+    db = SessionLocal()
+    sem = db.query(SemanaTecnico).filter(SemanaTecnico.semana == SEMANA).first()
+    reg = registrosSchemma(tecnico_id=contrato, semana_id=sem.id, nombre="PRUEBA CALC", job="LOCKOUT", job_name="ANTES1",
+                           valor_servicio=300, tipo_pago="CC", porcentaje_tecnico=50, valor_tarjeta=0, valor_efectivo=0,
+                           porcentaje_cc=9, partes_gil=0, partes_tecnico=0, tech=0, total=148.0)
+    db.add(reg)
+    db.commit()
+    rid = reg.id
+    db.close()
+    antes = _diferencias()
+    r = cliente.put(f"/api/update-registro/{rid}", headers=sesion, json={"job_name": "ANTES1-B"})
+    assert r.json()["registro"]["total"] == 148.0                   # sin total del panel: el guardado
+    r = cliente.put("/api/bulk-update-registros", headers=sesion, json=[{"id": rid, "job_name": "ANTES1-C", "total": 150.0}])
+    assert r.json()["registros"][0]["total"] == 150.0               # el del panel, como siempre
+    assert _diferencias() == antes
+    db = SessionLocal()
+    reg = db.get(registrosSchemma, rid)
+    assert reg.origen is None and reg.minimo is None and reg.is_cash is None   # no se le inventa lo que no guardó
+    db.close()
