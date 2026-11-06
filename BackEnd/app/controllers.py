@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models import Trabajo, SemanaTecnico,registrosSchemma
+from app import servicio_calculo
 from app.utils import semana_actual,obtener_rango_semana, construcionTablaResultado, estilizar_excel, datos_semana_desde_label, semanas_recientes
 from app.schemmas import TrabajoSchema,TecnicoRequest,UpdateRegistroSchema,SemanaTecnicoSchemaFront,ResumenSemanaSchema,SemanaTecnicoSchema
 from datetime import date, timedelta
@@ -120,10 +121,15 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
                 porcentaje_cc=r.porcentaje_cc,
                 subtotal=r.subtotal,
                 total=r.total,
+                # Plan del bot, fase 2: lo que la fórmula usa (sin él, del contrato) y de dónde vino
+                is_cash=r.is_cash, aplica_dolar_empresa=r.aplica_dolar_empresa, adicional_dolar=r.adicional_dolar,
+                minimo=r.minimo, dolar_adicional_empresa=r.dolar_adicional_empresa, origen="panel",
             )
             db.add(nuevo)
             db.flush()
-            registros_creados.append({"id": nuevo.id, "job": nuevo.job})
+            # El servidor manda: recalcula con la misma fórmula del panel (anota si no coincide).
+            servicio_calculo.recalcula(db, nuevo, r.total)
+            registros_creados.append(servicio_calculo.fila_respuesta(nuevo))
 
         db.commit()
         return {"message": "Registros agregados correctamente", "registros": registros_creados}
@@ -538,15 +544,18 @@ VALOR CON TARJETA (valor_tarjeta):
 #  FUNCIÓN PRINCIPAL
 # ══════════════════════════════════════════════════════════════
  
-def parse_ticket(text: str) -> dict:
-    """
-    Le pasa el mensaje a la IA y devuelve el JSON limpio.
-    Los campos que la IA no pueda identificar vienen en null —
-    es tu código el que decide qué hacer con esos nulls.
-    """
+MODELO_LECTOR = "gpt-4o-mini"
+VERSION_PROMPT = "2026-11-06"     # súbela cuando cambie SYSTEM_PROMPT: el historial del bot compara versiones
+
+
+def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
+    """Como `parse_ticket`, y además devuelve el gasto de la llamada (plan del bot, §9):
+    {"modelo", "version_prompt", "tokens_entrada", "tokens_salida"}. Si falla, ({}, uso con lo que se sepa)."""
+    uso = {"modelo": MODELO_LECTOR, "version_prompt": VERSION_PROMPT, "tokens_entrada": 0, "tokens_salida": 0}
+    raw = ""
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=MODELO_LECTOR,
             temperature=0,        # Sin creatividad — solo extracción
             max_tokens=600,
             messages=[
@@ -554,7 +563,10 @@ def parse_ticket(text: str) -> dict:
                 {"role": "user",   "content": text}
             ]
         )
- 
+        if getattr(response, "usage", None):
+            uso["tokens_entrada"] = response.usage.prompt_tokens or 0
+            uso["tokens_salida"] = response.usage.completion_tokens or 0
+
         raw = response.choices[0].message.content.strip()
         raw = re.sub(r"```json|```", "", raw).strip()
         result = json.loads(raw)
@@ -562,18 +574,25 @@ def parse_ticket(text: str) -> dict:
         # Agregar lista de campos faltantes al resultado
         faltantes = [f for f in ["job_type", "tipo_pago"] if not result.get(f)]
         result["faltantes"] = faltantes
-        print(result)
-        return result
+        return result, uso
 
- 
     except json.JSONDecodeError:
-        print(f"[ERROR] La IA no devolvió JSON válido:\n{raw}")
-        return {}
+        print(f"[ERROR] La IA no devolvió JSON válido: {raw}")
+        return {}, uso
     except Exception as e:
         print(f"[ERROR] Fallo en la API: {e}")
-        return {}
- 
- 
+        return {}, uso
+
+
+def parse_ticket(text: str) -> dict:
+    """
+    Le pasa el mensaje a la IA y devuelve el JSON limpio.
+    Los campos que la IA no pueda identificar vienen en null —
+    es tu código el que decide qué hacer con esos nulls.
+    """
+    return parse_ticket_con_uso(text)[0]
+
+
 def updateRegistroController(id: int, data, db: Session):
 
     registro = db.query(registrosSchemma).filter(
@@ -584,13 +603,18 @@ def updateRegistroController(id: int, data, db: Session):
         raise HTTPException(status_code=404, detail="Registro no encontrado")
 
     try:
-        for key, value in data.dict(exclude_unset=True).items():
+        cambios = data.dict(exclude_unset=True)
+        total_panel = cambios.pop("total", None)
+        cambios.pop("id", None)
+        for key, value in cambios.items():
             setattr(registro, key, value)
+        # Plan del bot, fase 2: el servidor manda en el total.
+        servicio_calculo.recalcula(db, registro, total_panel)
 
         db.commit()
         db.refresh(registro)
 
-        return {"message": "Registro actualizado correctamente"}
+        return {"message": "Registro actualizado correctamente", "registro": servicio_calculo.fila_respuesta(registro)}
 
     except Exception as e:
         db.rollback()
@@ -675,20 +699,24 @@ def validarJobDuplicado(job_name: str, db: Session):
     }
 
 def bulkUpdateRegistros(registros: List[UpdateRegistroSchema], db: Session):
-    print("REGISTROS RECIBIDOS:", registros)  # ✅
     try:
+        respuesta = []
         for item in registros:
             registro = db.query(registrosSchemma).filter(
                 registrosSchemma.id == item.id
             ).first()
             if not registro:
                 continue
-            for key, value in item.dict(exclude_unset=True).items():
-                if key == "id":
-                    continue
+            cambios = item.dict(exclude_unset=True)
+            total_panel = cambios.pop("total", None)
+            cambios.pop("id", None)
+            for key, value in cambios.items():
                 setattr(registro, key, value)
+            # Plan del bot, fase 2: el servidor manda en el total (y devuelve lo que quedó, para que el panel cuadre).
+            servicio_calculo.recalcula(db, registro, total_panel)
+            respuesta.append(servicio_calculo.fila_respuesta(registro))
         db.commit()
-        return {"message": "Registros actualizados correctamente"}
+        return {"message": "Registros actualizados correctamente", "registros": respuesta}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

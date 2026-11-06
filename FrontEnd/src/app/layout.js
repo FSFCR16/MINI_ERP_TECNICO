@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { GuardaSesion } from "@/Components/GuardaSesion.jsx";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +28,7 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased bg-gradient-to-br from-blue-100 via-sky-100 to-indigo-100`}
       >
-        {children}
+        <GuardaSesion>{children}</GuardaSesion>
       </body>
     </html>
   );

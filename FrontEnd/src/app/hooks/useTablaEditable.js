@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { useDragSelect } from "@/app/hooks/useDragSelect"
 import { useClipboardStore, useSeleccionStore } from "@/app/stores/useClipboardStore"
 import { useTablaNavegacion } from "@/app/tecnico/[nombre]/[semana]/hooks/useTablaNavegacion"
+import { aplicaServidor, textoAjustes } from "@/app/hooks/reconciliaServidor"
+
+const RESALTE_MS = 2500
 
 const idDe = (r) => r.id_registro ?? r.id
 const clonar = (arr) => arr.map((r) => ({ ...r }))
@@ -23,12 +26,13 @@ const norm = (v) => (v === null || v === undefined ? "" : String(v))
 //   buildUpdatePayload(rows)       → payload para services.bulkUpdate
 //   services { crear, bulkUpdate, eliminar }
 //   onError?(msg)
+//   onAviso?(msg)                  → el servidor ajustó un total (plan del bot, fase 2)
 // ─────────────────────────────────────────────────────────────────────────────
 export function useTablaEditable(cfg) {
     const {
         registros, setRegistros, columnas,
         editarCelda, prepararPegado, camposComparar,
-        buildCreatePayload, buildUpdatePayload, services, onError,
+        buildCreatePayload, buildUpdatePayload, services, onError, onAviso,
     } = cfg
 
     const nav = useTablaNavegacion()
@@ -111,6 +115,27 @@ export function useTablaEditable(cfg) {
         sync(siguiente)
     }, [setRegistros, sync])
 
+    // El servidor manda en el total: si devolvió otro número, se pone el suyo, se resalta un momento y se avisa.
+    const reconcilia = useCallback((lista, filasServidor, idDeFila) => {
+        const { lista: nueva, ajustes } = aplicaServidor(lista, filasServidor, idDeFila)
+        if (ajustes.length) {
+            const marca = nueva.find((r) => r._ajustado)?._ajustado
+            const texto = textoAjustes(ajustes)
+            if (onAviso) onAviso(texto); else console.info(texto)
+            setTimeout(() => {
+                const sin = registrosRef.current.map((r) => {
+                    if (r._ajustado !== marca) return r
+                    const { _ajustado, ...resto } = r
+                    return resto
+                })
+                localOpRef.current = true
+                registrosRef.current = sin
+                setRegistros(sin)
+            }, RESALTE_MS)
+        }
+        return nueva
+    }, [onAviso, setRegistros])
+
     const toggleSeleccion = useCallback((row) => {
         setElementosAEliminar((prev) => prev.includes(row) ? prev.filter((e) => e !== row) : [...prev, row])
     }, [])
@@ -161,7 +186,8 @@ export function useTablaEditable(cfg) {
             // 2) persistir por debajo
             const res = await services.crear(buildCreatePayload([local]))
             const nuevoId = res?.registros?.[0]?.id ?? null
-            const guardada = { ...local, id_registro: nuevoId, _guardando: false }
+            let guardada = { ...local, id_registro: nuevoId, _guardando: false }
+            if (nuevoId != null) [guardada] = reconcilia([guardada], res.registros.slice(0, 1))
 
             localOpRef.current = true
             const finalLista = registrosRef.current.map((r) => (r.id === tempId ? guardada : r))
@@ -183,7 +209,7 @@ export function useTablaEditable(cfg) {
             onError?.("No se pudo guardar el registro. Se quitó de la lista.")
             return false
         }
-    }, [services, buildCreatePayload, setRegistros, sync, onError])
+    }, [services, buildCreatePayload, setRegistros, sync, onError, reconcilia])
 
     const copiar = useCallback(() => {
         const seleccion = useSeleccionStore.getState().seleccion
@@ -214,25 +240,31 @@ export function useTablaEditable(cfg) {
         setGuardando(true)
         try {
             if (toDelete.length) await services.eliminar(toDelete)
-            if (toUpdate.length) await services.bulkUpdate(buildUpdatePayload(toUpdate))
+            const delServidor = []   // filas tal como quedaron guardadas (con el total del servidor)
+            if (toUpdate.length) {
+                const res = await services.bulkUpdate(buildUpdatePayload(toUpdate))
+                delServidor.push(...(res?.registros ?? []))
+            }
             const idsCreados = {}
             if (toCreate.length) {
                 const res = await services.crear(buildCreatePayload(toCreate))
                 const ids = res?.registros ?? []
                 toCreate.forEach((r, i) => { if (ids[i]?.id) idsCreados[r.id] = ids[i].id })
+                delServidor.push(...ids)
             }
             // Cambio "externo" (localOpRef=false) → el efecto fija nuevo baseline y limpia historial.
-            const finalLista = registrosRef.current.map((r) => idsCreados[r.id] ? { ...r, id_registro: idsCreados[r.id] } : r)
+            const conIds = registrosRef.current.map((r) => idsCreados[r.id] ? { ...r, id_registro: idsCreados[r.id] } : r)
+            const finalLista = reconcilia(conIds, delServidor)
             registrosRef.current = finalLista
             localOpRef.current = false
             setRegistros(finalLista)
         } catch (e) {
             console.error(e)
-            onError?.("No se pudieron guardar los cambios")
+            onError?.("No se pudieron guardar los cambios. Siguen en la tabla: vuelve a intentar con Guardar o Ctrl+S.")
         } finally {
             setGuardando(false)
         }
-    }, [guardando, calcularDiff, buildUpdatePayload, buildCreatePayload, services, setRegistros, onError])
+    }, [guardando, calcularDiff, buildUpdatePayload, buildCreatePayload, services, setRegistros, onError, reconcilia])
 
     // ── Atajos de teclado (Ctrl+S/Z/Y/C/V) ─────────────────
     const editandoEnInput = () => {

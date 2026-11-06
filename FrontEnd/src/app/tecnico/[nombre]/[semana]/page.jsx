@@ -1,5 +1,7 @@
 "use client"
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
+import { AvisoGuardado } from "@/Components/AvisoGuardado"
+import { BandejaBot } from "@/Components/BandejaBot"
 import { useParams } from "next/navigation"
 import { procesarDatosTecnico } from "../../../../Utils/api.js"
 import { MobileView } from "./views/MobileView.jsx"
@@ -23,7 +25,7 @@ export default function Page() {
         registrosLocalStorage, setRegistrosLocalStorage,
         semanaFechas,
         loading, setLoading,
-        error, setError
+        error, setError, recargar
     } = useTecnicoData(nombre, semana)
 
     const tieneError = useCallback((columna) => {
@@ -34,6 +36,8 @@ export default function Page() {
     const [resultadoParcial, setResultadoParcial] = useState(null)
     const [camposFaltantes, setCamposFaltantes] = useState([])
     const [notasOverride, setNotas] = useState(null)
+    const [aviso, setAviso] = useState(null)
+    const cerrarAviso = useCallback(() => setAviso(null), [])
 
     // 1. Memoizamos la base de los datos para que no se procese en cada render
     const rowDataBase = useMemo(() => 
@@ -92,7 +96,7 @@ export default function Page() {
         nombre, semana,semanaFechas, data, rowData, setRow,
         listRegistro, setListRegistros,
         registrosLocalStorage, setRegistrosLocalStorage,
-        setLoading, setError, setNotas,
+        setLoading, setError, setNotas, setAviso,
         openModal, openError, closeModal,
     })
 
@@ -177,11 +181,14 @@ export default function Page() {
     return (
         <>
             {loading && <LoadingOverlay />}
+            <BandejaBot nombre={nombre} semana={semana} registros={listRegistro} hayPendientes={haycambiosPendientes}
+                recargar={recargar} onAviso={(texto) => setAviso({ tipo: "ajuste", texto })} />
             {isMobile
                 ? <MobileView {...state} {...handlers} {...nav} openModal={openModal} />
                 : <DesktopView state={state} handlers={handlers} nav={nav} modal={modalState} />
             }
 
+            <AvisoGuardado aviso={aviso} cerrar={cerrarAviso} />
             <ModalManager
                 modal={modal}
                 closeModal={closeModal}

@@ -61,6 +61,10 @@ class SemanaTecnicoSchemaFront(BaseModel):
     total: float
     adicional_dolar: float
     notas: list
+    # Plan del bot, fase 2: lo que la fórmula usa (si el panel no lo manda, el servidor lo toma del contrato)
+    is_cash: Optional[bool] = None
+    aplica_dolar_empresa: Optional[str] = None
+    dolar_adicional_empresa: Optional[float] = None
 
     @field_validator('id', mode='before')
     @classmethod
@@ -111,6 +115,10 @@ class UpdateRegistroSchema(BaseModel):
     porcentaje_cc: Optional[float] = None
     subtotal: Optional[float] = None
     total: Optional[float] = None
+    # Plan del bot, fase 2
+    is_cash: Optional[bool] = None
+    aplica_dolar_empresa: Optional[str] = None
+    adicional_dolar: Optional[float] = None
 
 class TrabajoCreateSchema(BaseModel):
     nombre: str

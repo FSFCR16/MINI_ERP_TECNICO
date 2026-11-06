@@ -1,4 +1,4 @@
-from sqlalchemy import Column, TIMESTAMP ,Integer, String, Float, Date, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, Column, TIMESTAMP ,Integer, String, Float, Date, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.db import Base
 from sqlalchemy.sql import func
@@ -48,6 +48,19 @@ class registrosSchemma(Base):
     porcentaje_cc = Column(Float, nullable=True)
     subtotal = Column(Float, nullable=True)
     total = Column(Float, nullable=True)
+    # Plan del bot, fase 2: lo que la fórmula usa y antes no se guardaba (al reabrir un trabajo se tomaba del contrato
+    # de HOY y «CC como cash» volvía a NO). NULL en los trabajos viejos = como antes (lo del contrato).
+    is_cash = Column(Boolean, nullable=True)
+    aplica_dolar_empresa = Column(String(2), nullable=True)      # «SI» / «NO»
+    adicional_dolar = Column(Float, nullable=True)
+    minimo = Column(Float, nullable=True)
+    dolar_adicional_empresa = Column(Float, nullable=True)
+    origen = Column(String(20), nullable=True)                   # «panel» / «bot» (NULL = de antes)
+    # Plan del bot, fase 3: lo que llega por WhatsApp entra «por_validar» hasta que alguien lo aprueba en el panel
+    # (NULL = validado / de antes). `alertas` es JSON con las 🟡 (fase 5); `mensaje_id` apunta a mensajes_bot.
+    validacion = Column(String(20), nullable=True)
+    alertas = Column(Text, nullable=True)
+    mensaje_id = Column(Integer, nullable=True, index=True)
     created_at = Column(TIMESTAMP(timezone=True),server_default=func.now(),default=lambda: datetime.now(timezone.utc),nullable=False) # 👈 no más nulls
     tecnico= relationship("Trabajo", back_populates="registros")
     semana = relationship("SemanaTecnico", back_populates="registros")

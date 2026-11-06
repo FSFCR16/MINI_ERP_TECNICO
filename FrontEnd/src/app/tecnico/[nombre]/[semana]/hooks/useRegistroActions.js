@@ -43,6 +43,7 @@ export function useRegistroActions({
   setListRegistros,
   setLoading,
   setError,
+  setAviso,
   openModal,
   openError,
   closeModal,
@@ -121,6 +122,8 @@ export function useRegistroActions({
       subtotal: p.subtotal ?? 0,
       total: p.total ?? 0,
       is_cash: p.is_cash ?? false,
+      aplica_dolar_empresa: p.aplica_dolar_empresa ?? null,
+      dolar_adicional_empresa: p.dolar_adicional_empresa ?? null,
       adicional_dolar: p.adicional_dolar ?? 0,
       notas: p.notas ?? [],
     };
@@ -145,7 +148,10 @@ export function useRegistroActions({
     buildCreatePayload,
     buildUpdatePayload,
     services,
-    onError: setError,
+    // Plan del bot, fase 2: un fallo al guardar no tapa la tabla (los cambios siguen ahí para reintentar)
+    // y si el servidor ajusta un total, se avisa.
+    onError: (m) => (setAviso ? setAviso({ tipo: "error", texto: m }) : setError(m)),
+    onAviso: setAviso ? (t) => setAviso({ tipo: "ajuste", texto: t }) : undefined,
   });
 
   const { state: eState, handlers: eHandlers } = engine;

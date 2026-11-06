@@ -11,7 +11,14 @@ import {
   formatearFechaSemana,
 } from "../../../../../Utils/api.js";
 
+// Plan del bot, fase 2: lo que la fórmula usó se guarda en la fila. En los trabajos de antes viene en null y NO debe
+// pisar lo del contrato (si no, el mínimo, el adicional o el «dólar empresa» quedarían en 0 al reabrir).
+const CAMPOS_DEL_CALCULO = ["is_cash", "aplica_dolar_empresa", "adicional_dolar", "minimo", "dolar_adicional_empresa"];
+const sinVaciosDelCalculo = (dato) =>
+  Object.fromEntries(Object.entries(dato).filter(([k, v]) => !(CAMPOS_DEL_CALCULO.includes(k) && v == null)));
+
 export function useTecnicoData(nombre, semana) {
+  const [version, setVersion] = useState(0);   // «Ver» los trabajos nuevos del bot = recargar
   const [data, setData] = useState([]);
   const [rawRegistros, setRawRegistros] = useState([]);
   const [listRegistro, setListRegistros] = useState([]);
@@ -85,7 +92,7 @@ export function useTecnicoData(nombre, semana) {
     return () => {
       isMounted = false;
     };
-  }, [nombre, semanaStr]);
+  }, [nombre, semanaStr, version]);
 
   // Cuando llegan los datos crudos, procesa y popula listRegistro
   useEffect(() => {
@@ -131,7 +138,7 @@ export function useTecnicoData(nombre, semana) {
       // etiqueta y los valores del contrato viejo (ej. TODO). De lo contrario
       // el guard de procesarDatosTecnico (job catálogo ≠ job registro)
       // descartaría los valores guardados y pintaría la fila vacía.
-      acc.push(...procesarDatosTecnico([{ ...contrato, job: dato.job }], dato));
+      acc.push(...procesarDatosTecnico([{ ...contrato, job: dato.job }], sinVaciosDelCalculo(dato)));
       return acc;
     }, []);
 
@@ -146,5 +153,6 @@ export function useTecnicoData(nombre, semana) {
     setLoading,
     error,
     semanaFechas,
+    recargar: () => setVersion((v) => v + 1),
   };
 }

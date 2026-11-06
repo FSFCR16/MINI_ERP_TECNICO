@@ -84,3 +84,9 @@ export const actualizarNota = (id, texto) =>
 
 export const eliminarNota = (id) =>
     api.delete(`/api/notas/${id}`)
+// ── Plan del bot (lo que llega por WhatsApp) ─────────
+export const botNuevos = (nombre, semana, desde) =>
+    api.get(`/api/bot/nuevos?nombre=${encodeURIComponent(nombre)}&semana=${encodeURIComponent(semana)}&desde=${desde}`)
+
+export const botValidar = (ids) =>
+    api.post("/api/bot/validar", { ids })

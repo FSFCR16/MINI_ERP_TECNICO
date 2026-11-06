@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import router
 from app.routes_virginia import router as router_virginia
 from app.routes_notas import router as router_notas
+from app.routes_auth import router as router_auth
+from app.routes_bot import router as router_bot, router_publico as router_bot_publico
 from app.db import SessionLocal, Base, engine
+from app import seguridad
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
 import os
@@ -14,6 +17,9 @@ load_dotenv()
 
 URLFRONT = os.getenv("URLFRONT")
 
+# Plan del bot, fase 1: sin ERP_SECRETO no se arranca (mejor caído que abierto).
+seguridad._secreto()
+
 ### CREACION CONSTRUTOR FAST API
 app = FastAPI()
 
@@ -21,14 +27,20 @@ app = FastAPI()
 #Base.metadata.create_all(bind=engine)
 
 
-origins = ["*"]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False, 
-                   allow_methods=["GET","POST","PUT","DELETE","OPTIONS"], allow_headers=["*"])
+# Plan del bot, fase 1: CORS solo para el panel (ERP_ORIGENES, separados por coma; si no, URLFRONT). Antes: «*».
+origins = [o.strip().rstrip("/") for o in (os.getenv("ERP_ORIGENES") or URLFRONT or "").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=False,
+                   allow_methods=["GET","POST","PUT","DELETE","OPTIONS"],
+                   allow_headers=["Authorization", "Content-Type", "X-Llave-Chat"])
 
 ### RUTAS
-app.include_router(router)
-app.include_router(router_virginia)
-app.include_router(router_notas)
+# Plan del bot, fase 1: TODA la API pide sesión (o la llave del chat). Lo único abierto: entrar.
+app.include_router(router_auth)
+app.include_router(router, dependencies=seguridad.ACCESO)
+app.include_router(router_virginia, dependencies=seguridad.ACCESO)
+app.include_router(router_notas, dependencies=seguridad.ACCESO)
+app.include_router(router_bot, dependencies=seguridad.ACCESO)
+app.include_router(router_bot_publico)          # solo el Excel por enlace firmado (lleva su propia firma)
 
 ### MANEJO DE ERRORES
 @app.exception_handler(HTTPException)

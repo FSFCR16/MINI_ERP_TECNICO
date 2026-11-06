@@ -5,6 +5,8 @@ import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 // ── FIX 1: importar el selector estable en lugar del store completo
 import { useSeleccionStore, useEsSeleccionada, useLimpiarClipboard } from '../../../../../../app/stores/useClipboardStore.js'
 
+import { marcaBot } from "@/Components/BandejaBot"
+
 export const FilaRegistro = memo(function FilaRegistro({
     row,
     indexrow,
@@ -33,9 +35,11 @@ export const FilaRegistro = memo(function FilaRegistro({
 
     const [columnaEditando, setColumnaEditando] = useState(null)
     const [celdaActivaLocal, setCeldaActivaLocal] = useState(null)
+    const bot = marcaBot(row)   // plan del bot: llegó por WhatsApp y espera validación (con o sin alertas)
 
     return (
         <tr
+            title={bot?.titulo}
             onMouseDown={(e) => {
                 if (e.button !== 0) return
                 if (e.target.tagName === 'INPUT' || e.target.type === 'checkbox') return
@@ -44,7 +48,7 @@ export const FilaRegistro = memo(function FilaRegistro({
             onMouseEnter={() => extenderDrag(rowId)}
             // ── FIX 2: sin onContextMenu aquí — el evento sube al div contenedor
             className={`
-                transition duration-200 hover:bg-white/40 select-none
+                transition duration-200 hover:bg-white/40 select-none ${bot?.clase ?? ""}
                 ${esSeleccionada
                     ? "bg-amber-100/70 ring-1 ring-inset ring-amber-300/60"
                     : marcadoParaEliminar
@@ -132,7 +136,9 @@ export const FilaRegistro = memo(function FilaRegistro({
                                     esEditable ? "cursor-pointer" : "cursor-default"
                                 } ${
                                     isTotal
-                                        ? Number(value) < 0
+                                        ? row._ajustado
+                                            ? "text-amber-800 bg-amber-100 ring-2 ring-amber-400 px-1 rounded transition-colors"
+                                            : Number(value) < 0
                                             ? "text-rose-500 bg-rose-50 px-1 rounded"
                                             : "text-green-600 bg-green-50 px-1 rounded"
                                         : "text-slate-700"
