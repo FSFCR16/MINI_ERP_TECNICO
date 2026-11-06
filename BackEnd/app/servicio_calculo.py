@@ -50,7 +50,15 @@ def entrada(reg: registrosSchemma, contrato: Trabajo | None) -> dict[str, Any]:
 
 
 def recalcula(db: Session, reg: registrosSchemma, total_panel: float | None = None) -> float:
-    """Pone en la fila el total del servidor y lo que usó. Si `total_panel` vino y no coincide, lo anota."""
+    """Pone en la fila el total del servidor y lo que usó. Si `total_panel` vino y no coincide, lo anota.
+
+    🔴 Los trabajos DE ANTES (`origen` NULL) no se recalculan: no guardaron lo que la fórmula usó («CC como cash», el
+    dólar empresa, ajustes a mano), y recalcularlos daría otro número (`compara_guardados.py`, 2026-11-06: 1.634 de
+    8.054; 1.334 eran «CC como cash»). Siguen como siempre: queda el total que manda el panel o el guardado."""
+    if reg.origen is None:
+        if total_panel is not None:
+            reg.total = float(total_panel)
+        return float(reg.total or 0)
     contrato = db.get(Trabajo, reg.tecnico_id) if reg.tecnico_id else None
     e = entrada(reg, contrato)
     # Hay ramas de la fórmula que dejan el total como viene (igual que el panel): ahí se parte del total que el panel
