@@ -420,8 +420,26 @@ def test_mismo_job_con_texto_distinto_deja_elegir_y_ninguno_no_registra():
     db.close()
 
 
-def test_si_el_job_ya_existia_y_llega_dos_veces_se_pregunta_una_sola_vez():
+def test_si_el_job_ya_existia_e_iguales_se_pregunta_una_vez_y_si_son_distintos_no_descarta_ninguno():
     _tanda([{"texto": "NICK\ne0", "wamid": "w-e-0"}], {"e0": {**UNO, "job_name": "EX-1"}})
-    tabla = {"e1": {**UNO, "job_name": "EX-1"}, "e2": {**UNO, "job_name": "EX-1", "valor_servicio": 500}}
-    r = _tanda([{"texto": "NICK\ne1", "wamid": "w-e-1"}, {"texto": "NICK\ne2", "wamid": "w-e-2"}], tabla)["resultados"]
-    assert [x["estado"] for x in r] == ["repetido", "descartado"]
+    iguales = _tanda([{"texto": "NICK\ne1", "wamid": f"w-e-{n}"} for n in (1, 2)], {"e1": {**UNO, "job_name": "EX-1"}})["resultados"]
+    assert [x["estado"] for x in iguales] == ["repetido", "descartado"]
+    tabla = {"e3": {**UNO, "job_name": "EX-1"}, "e4": {**UNO, "job_name": "EX-1", "valor_servicio": 29}}
+    r = _tanda([{"texto": "NICK\ne3", "wamid": "w-e-3"}, {"texto": "NICK\ne4", "wamid": "w-e-4"}], tabla)["resultados"]
+    assert [x["estado"] for x in r] == ["duda_grupo", "duda_grupo"] and r[0]["iguales"] is False
+    assert r[0]["ya_registrado"]["nombre"] == "NICK"
+    db = SessionLocal()
+    h = servicio_bot.resuelve_grupo(db, r[0]["grupo"], "elegido", r[1]["mensaje_id"])["resultados"][0]
+    assert h["estado"] == "creado" and h["registro"]["valor_servicio"] == 29
+    assert "repetido" in [x["codigo"] for x in h["registro"]["alertas"]]
+    db.close()
+
+
+def test_el_repetido_se_dice_antes_de_pedir_tecnico_y_no_se_pregunta_dos_veces():
+    _tanda([{"texto": "NICK\nf0", "wamid": "w-f-0"}], {"f0": {**UNO, "job_name": "FUE-1"}})
+    r = _tanda([{"texto": "Sin nombre conocido 1\nf1", "wamid": "w-f-1"}], {"f1": {**UNO, "job_name": "FUE-1"}})["resultados"][0]
+    assert r["estado"] == "repetido" and r["ya_registrado"]["nombre"] == "NICK"
+    db = SessionLocal()
+    assert servicio_bot.resuelve_grupo(db, [r["mensaje_id"]], "todos")["resultados"][0]["estado"] == "sin_tecnico"
+    assert servicio_bot.completa(db, r["mensaje_id"], {"tecnico": "NICK"})["estado"] == "creado"
+    db.close()

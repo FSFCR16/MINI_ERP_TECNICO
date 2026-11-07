@@ -374,6 +374,7 @@ def resuelve_grupo(db: Session, ids: list[int], accion: str, elegido: int | None
         van = ms
     else:
         van = []
+    permitir = accion in ("todos", "elegido")     # lo eligió a propósito, sabiendo que el job ya estaba
     resultados = []
     for m in ms:
         if m not in van:
@@ -381,10 +382,11 @@ def resuelve_grupo(db: Session, ids: list[int], accion: str, elegido: int | None
             continue
         ia = json.loads(m.salida_ia or "{}") or {}
         reg = None
-        if not m.tecnico:
+        if not m.tecnico:       # falta el técnico: lo que se eligió aquí se recuerda para no volver a preguntarlo
             m.estado = "sin_tecnico"
+            m.salida_ia = json.dumps({**ia, "_permitir_repetido": permitir}, ensure_ascii=False)
         else:
-            reg = _intenta_crear(db, m, ia, asegura_semana(db, m.semana), permitir_repetido=accion == "todos")
+            reg = _intenta_crear(db, m, ia, asegura_semana(db, m.semana), permitir_repetido=permitir)
         db.flush()
         resultados.append(_respuesta(m, reg))
     db.commit()
@@ -452,19 +454,21 @@ def crea_trabajos(db: Session, semana_label: str, mensajes: list[dict[str, Any]]
         extra: dict[str, Any] = {"candidatos": quien["candidatos"]}
         if len(grupo) > 1:
             existe = ia.get("job_name") and _mismo_job(db, str(ia["job_name"])).first()
-            if not existe:
+            iguales = len({x[1].texto for x in grupo}) == 1
+            if not existe or not iguales:           # con datos distintos nunca se descarta ninguno: se pregunta
                 m.estado = "duda_grupo"
-                extra |= {"grupo": [x[1].id for x in grupo], "iguales": len({x[1].texto for x in grupo}) == 1}
+                extra |= {"grupo": [x[1].id for x in grupo], "iguales": iguales,
+                          "ya_registrado": ya_registrado(db, ia.get("job_name")) if existe else None}
                 resultados[pos] = _respuesta(m, None, **extra)
                 continue
-            if grupo[0][1] is not m:                # ya está registrado: se pregunta una sola vez, con el primero
+            if grupo[0][1] is not m:                # idénticos y ya registrado: basta preguntar una vez, por el primero
                 m.estado = "descartado"
                 resultados[pos] = _respuesta(m, None)
                 continue
         if not ia:
             m.estado = "sin_lectura"
-        elif not m.tecnico:
-            m.estado = "sin_tecnico"
+        elif not m.tecnico:     # si el job ya existe, eso se dice primero: quizá ni hace falta el técnico
+            m.estado = "repetido" if ia.get("job_name") and _mismo_job(db, str(ia["job_name"])).first() else "sin_tecnico"
         else:
             reg = _intenta_crear(db, m, ia, semana)
         db.flush()
@@ -502,7 +506,8 @@ def completa(db: Session, mensaje_id: int, cambios: dict[str, Any]) -> dict[str,
             ia[mapa.get(k, k)] = v
     m.salida_ia = json.dumps(ia, ensure_ascii=False)
     semana = asegura_semana(db, m.semana)
-    reg = _intenta_crear(db, m, ia, semana) if m.tecnico else None
+    permitir = bool(ia.pop("_permitir_repetido", False))
+    reg = _intenta_crear(db, m, ia, semana, permitir_repetido=permitir) if m.tecnico else None
     if not m.tecnico:
         m.estado = "sin_tecnico"
     db.commit()
