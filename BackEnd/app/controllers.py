@@ -544,7 +544,7 @@ VALOR CON TARJETA (valor_tarjeta):
 #  FUNCIÓN PRINCIPAL
 # ══════════════════════════════════════════════════════════════
  
-MODELO_LECTOR = "gpt-4o-mini"
+MODELO_LECTOR = "gpt-6-luna"
 VERSION_PROMPT = "2026-11-06"     # súbela cuando cambie SYSTEM_PROMPT: el historial del bot compara versiones
 
 
@@ -556,8 +556,7 @@ def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
     try:
         response = client.chat.completions.create(
             model=MODELO_LECTOR,
-            temperature=0,        # Sin creatividad — solo extracción
-            max_tokens=600,
+            max_completion_tokens=2000,   # incluye lo que razona: este modelo no acepta max_tokens
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user",   "content": text}

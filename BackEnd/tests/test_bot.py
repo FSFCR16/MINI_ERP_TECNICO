@@ -86,7 +86,7 @@ def test_el_tecnico_de_la_tanda_sigue_en_la_siguiente_llamada_y_el_gasto_queda()
     assert r["resultados"][0]["estado"] == "creado"
     db = SessionLocal()
     m = db.get(MensajeBot, r["resultados"][0]["mensaje_id"])
-    assert (m.tokens_entrada, m.tokens_salida, m.costo_usd, m.tanda) == (1000, 200, 0.00027, r["tanda"])
+    assert (m.tokens_entrada, m.tokens_salida, m.costo_usd, m.tanda) == (1000, 200, 0.0002, r["tanda"])
     assert json.loads(m.salida_ia)["job_name"] == "B2-1"
     db.close()
 
@@ -249,7 +249,7 @@ def test_nuevos_para_el_panel_abierto_y_gasto_de_ia():
     gasto = servicio_bot.gasto_ia(db, desde=HOY - timedelta(days=1))
     db.close()
     assert despues["nuevos"] == 2 and despues["ultimo_id"] > antes["ultimo_id"]
-    assert gasto["mensajes"] >= 2 and servicio_bot.gasto_ia(SessionLocal())["costo_usd"] >= gasto0["costo_usd"] + 0.0005
+    assert gasto["mensajes"] >= 2 and servicio_bot.gasto_ia(SessionLocal())["costo_usd"] >= gasto0["costo_usd"] + 0.00039
 
 
 # ─────────────────────────── por HTTP: llave, sesión y Excel ───────────────────────────
@@ -305,7 +305,7 @@ def test_corregir_citando_cambia_solo_ese_trabajo_y_se_puede_deshacer():
     assert (reg.valor_servicio, reg.total) == (300, 152.5)
     db = SessionLocal()
     m = db.query(MensajeBot).filter(MensajeBot.wamid == "w-k-1").first()
-    assert m.tokens_entrada == 2000 and m.costo_usd == 0.00054                  # la corrección también cuenta
+    assert m.tokens_entrada == 2000 and m.costo_usd == 0.0004                  # la corrección también cuenta
     db.close()
 
 

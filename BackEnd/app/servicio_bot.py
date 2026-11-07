@@ -31,10 +31,10 @@ from app.models_notas import NotaTecnico
 
 POR_VALIDAR = "por_validar"
 
-# Precio de gpt-4o-mini en USD por millón de tokens (openai.com/api/pricing). Si OpenAI lo cambia, se ajusta con
+# Precio de gpt-6-luna en USD por millón de tokens (openai.com/api/pricing). Si OpenAI lo cambia, se ajusta con
 # las variables de entorno sin tocar el código.
-PRECIO_ENTRADA = float(os.getenv("ERP_PRECIO_ENTRADA_USD_M", "0.15"))
-PRECIO_SALIDA = float(os.getenv("ERP_PRECIO_SALIDA_USD_M", "0.60"))
+PRECIO_ENTRADA = float(os.getenv("ERP_PRECIO_ENTRADA_USD_M", "0.10"))
+PRECIO_SALIDA = float(os.getenv("ERP_PRECIO_SALIDA_USD_M", "0.50"))
 
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 MESES_LARGOS = {"enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
