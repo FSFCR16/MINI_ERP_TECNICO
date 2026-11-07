@@ -81,8 +81,6 @@ def amarillas(db: Session, fila: dict[str, Any], c: Trabajo, semana: SemanaTecni
     raro = _fuera_de_lo_normal(db, fila["nombre"], servicio)
     if raro:
         al.append({"codigo": "valor_raro", "texto": raro})
-    if not fila.get("job_name"):
-        al.append({"codigo": "sin_job", "texto": "No trae el número del job: no se puede revisar si está repetido."})
     fechas = fechas_posibles(ia.get("date"), semana.fecha_inicio.year)
     if fechas:
         dentro = [d for d in fechas if semana.fecha_inicio <= d <= semana.fecha_fin]

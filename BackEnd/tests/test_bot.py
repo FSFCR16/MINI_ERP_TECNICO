@@ -23,7 +23,10 @@ def lee(tabla):
     """Lector falso: el texto del mensaje es la llave de lo que «leyó la IA»."""
     def lector(texto):
         clave = texto.splitlines()[-1].strip()
-        return (dict(tabla[clave]) if clave in tabla else {}), dict(USO)
+        if clave not in tabla:
+            return {}, dict(USO)
+        # Sin número de job no entra: las pruebas que no hablan de eso traen uno propio de su mensaje.
+        return {"job_name": f"T-{abs(hash(clave)) % 10_000_000}", **tabla[clave]}, dict(USO)
     return lector
 
 
@@ -151,7 +154,6 @@ def test_alertas_amarillas_entran_marcadas():
     assert _alertas({**CASH300, "job_name": "A-OK"}) == set()
     assert "bajo_minimo" in _alertas({**CASH300, "job_name": "A-MIN", "valor_servicio": 40})
     assert "partes_mayores" in _alertas({**CASH300, "job_name": "A-PART", "valor_servicio": 100, "tech": 150})
-    assert "sin_job" in _alertas({**CASH300, "job_name": None})
     lejos = (LUNES - timedelta(weeks=5)).strftime("%m/%d/%Y")
     assert "fecha_fuera" in _alertas({**CASH300, "job_name": "A-FECHA", "date": lejos})
 
@@ -442,4 +444,13 @@ def test_el_repetido_se_dice_antes_de_pedir_tecnico_y_no_se_pregunta_dos_veces()
     db = SessionLocal()
     assert servicio_bot.resuelve_grupo(db, [r["mensaje_id"]], "todos")["resultados"][0]["estado"] == "sin_tecnico"
     assert servicio_bot.completa(db, r["mensaje_id"], {"tecnico": "NICK"})["estado"] == "creado"
+    db.close()
+
+
+def test_sin_numero_de_job_no_entra_y_citando_el_numero_si():
+    r = _tanda([{"texto": "NICK" + chr(10) + "sinjob", "wamid": "w-sj-1"}], {"sinjob": {**UNO, "job_name": None}})["resultados"][0]
+    assert r["estado"] == "sin_job" and r["motivo"] == "No trae el número del job." and "registro" not in r
+    db = SessionLocal()
+    h = servicio_bot.corrige(db, "w-sj-1", "ABJ-77", lector=lambda texto: ({**UNO, "job_name": "ABJ-77"}, dict(USO)))
+    assert h["estado"] == "creado" and h["registro"]["job_name"] == "ABJ-77"
     db.close()

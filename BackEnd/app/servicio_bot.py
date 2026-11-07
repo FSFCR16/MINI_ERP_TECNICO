@@ -48,6 +48,7 @@ MOTIVOS = {
     "sin_tecnico": "No sé de qué técnico es.",
     "sin_contrato": "El técnico no tiene contrato para ese tipo de trabajo.",
     "sin_valor": "No trae el valor del servicio.",
+    "sin_job": "No trae el número del job.",
     "mixto_sin_reparto": "Es MIXTO y no dice cuánto fue en cash y cuánto con tarjeta.",
     "repetido": "Ese job ya está registrado.",
     "sin_calculo": "Con esos datos la parte del técnico da 0 o menos: no se puede calcular.",
@@ -55,7 +56,7 @@ MOTIVOS = {
 }
 MAX_CANDIDATOS = 5
 # Qué campo hay que pedir para cada 🔴 (el formulario de la fase 6 muestra solo esto).
-FALTA = {"sin_tecnico": ["tecnico"], "sin_contrato": ["job"], "sin_valor": ["valor_servicio"],
+FALTA = {"sin_job": ["job_name"], "sin_tecnico": ["tecnico"], "sin_contrato": ["job"], "sin_valor": ["valor_servicio"],
          "mixto_sin_reparto": ["valor_efectivo", "valor_tarjeta"], "repetido": ["job_name"],
          "sin_calculo": ["valor_servicio", "partes_tecnico", "partes_gil"], "sin_lectura": ["texto"]}
 
@@ -286,6 +287,9 @@ def bloqueo(db: Session, fila: dict[str, Any], excluir_id: int | None = None, pe
         return "sin_valor"
     if fila["tipo_pago"] == "MIXTO" and (fila["valor_efectivo"] <= 0 or fila["valor_tarjeta"] <= 0):
         return "mixto_sin_reparto"
+    # Sin número no se puede saber si está repetido: no entra. Corregir uno que ya estaba no se frena por esto.
+    if not fila["job_name"] and excluir_id is None:
+        return "sin_job"
     if fila["job_name"] and not permitir_repetido:
         q = _mismo_job(db, fila["job_name"])
         if excluir_id is not None:
@@ -323,6 +327,7 @@ def _respuesta(m: MensajeBot, reg: registrosSchemma | None = None, **extra) -> d
         # Lo que sí se leyó, para que el formulario (fase 6) venga ya lleno y solo pida lo que falta.
         ia = json.loads(m.salida_ia or "{}") or {}
         r["leido"] = {k: ia.get(kia) for k, kia in CAMPOS_IA.items()}
+        r["texto"] = (m.texto or "")[:300]
         db = object_session(m)
         if m.estado == "repetido" and db is not None:
             r["ya_registrado"] = ya_registrado(db, ia.get("job_name"))
