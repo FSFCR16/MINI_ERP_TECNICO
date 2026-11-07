@@ -7,6 +7,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { sesion } from "@/Services/api.js";
 
+// 🔴 TEMPORAL (pedido del dueño, 2026-11-06): sin pantalla de entrar. Va junto con ERP_SIN_SESION en el servidor.
+const SIN_SESION = true;
 const nada = () => () => {};
 const hay = () => !!sesion.lee();
 
@@ -14,7 +16,7 @@ export function GuardaSesion({ children }) {
   const ruta = usePathname();
   const router = useRouter();
   const conSesion = useSyncExternalStore(nada, hay, () => false);
-  const abierta = ruta.startsWith("/entrar") || conSesion;
+  const abierta = SIN_SESION || ruta.startsWith("/entrar") || conSesion;
   useEffect(() => {
     if (!abierta) router.replace(`/entrar?volver=${encodeURIComponent(ruta)}`);
   }, [abierta, ruta, router]);

@@ -132,6 +132,12 @@ class Quien:
     usuario: int | None
 
 
+def sin_sesion() -> bool:
+    """🔴 TEMPORAL (pedido del dueño, 2026-11-06, mientras prueba): con esto la API queda ABIERTA para cualquiera con la
+    dirección. Para volver a exigir sesión: ERP_SIN_SESION=0, o quitar este interruptor (y el de GuardaSesion.jsx)."""
+    return os.getenv("ERP_SIN_SESION", "1") == "1"
+
+
 def requiere_acceso(request: Request) -> Quien:
     """La puerta de toda la API: una sesión válida o la llave del chat. Sin eso, 401."""
     llave = os.getenv("ERP_LLAVE_CHAT", "")
@@ -143,6 +149,8 @@ def requiere_acceso(request: Request) -> Quien:
         d = lee_firma(auth[7:].strip())
         if d and d.get("t") == "sesion":
             return Quien("persona", int(d["u"]))
+    if sin_sesion():
+        return Quien("anonimo", None)
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tu sesión terminó. Vuelve a entrar.")
 
 

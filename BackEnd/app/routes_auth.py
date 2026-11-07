@@ -38,6 +38,8 @@ def entrar(body: Entrada, db: Session = Depends(get_db)):
 def yo(quien: seguridad.Quien = Depends(seguridad.requiere_acceso), db: Session = Depends(get_db)):
     if quien.tipo == "chat":
         return {"tipo": "chat", "nombre": "Bot del chat"}
+    if quien.tipo == "anonimo":
+        return {"tipo": "anonimo", "nombre": "Sin sesión"}
     u = db.get(UsuarioERP, quien.usuario)
     if not u or not u.activo:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tu sesión terminó. Vuelve a entrar.")
