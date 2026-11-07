@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app import calculo, servicio_alertas, servicio_calculo
 from app.controllers import exporToExcelController, parse_ticket_con_uso, validarTecnicoSemana
@@ -51,7 +51,9 @@ MOTIVOS = {
     "mixto_sin_reparto": "Es MIXTO y no dice cuánto fue en cash y cuánto con tarjeta.",
     "repetido": "Ese job ya está registrado.",
     "sin_calculo": "Con esos datos la parte del técnico da 0 o menos: no se puede calcular.",
+    "duda_grupo": "Llegó varias veces en la misma tanda: falta elegir cuál se registra.",
 }
+MAX_CANDIDATOS = 5
 # Qué campo hay que pedir para cada 🔴 (el formulario de la fase 6 muestra solo esto).
 FALTA = {"sin_tecnico": ["tecnico"], "sin_contrato": ["job"], "sin_valor": ["valor_servicio"],
          "mixto_sin_reparto": ["valor_efectivo", "valor_tarjeta"], "repetido": ["job_name"],
@@ -78,8 +80,20 @@ def nombres_tecnicos(db: Session) -> list[str]:
 
 
 def _candidatos(trozo: str, nombres: list[str]) -> list[str]:
+    """Hasta 5, sin IA: primero los que contienen esa palabra («Afik» → los tres AFIK), luego los que se le parecen."""
     por_norm = {_norm(n): n for n in nombres}
-    return [por_norm[c] for c in difflib.get_close_matches(_norm(trozo), list(por_norm), n=3, cutoff=0.75)]
+    limpio = _norm(trozo)
+    if not limpio:
+        return []
+    palabras = limpio.split()
+    contienen = [por_norm[k] for k in sorted(por_norm) if any(p in k.split() for p in palabras)]
+    parecidos = [por_norm[c] for c in difflib.get_close_matches(limpio, list(por_norm), n=MAX_CANDIDATOS, cutoff=0.75)]
+    return list(dict.fromkeys(contienen + parecidos))[:MAX_CANDIDATOS]
+
+
+def _parece_nombre(linea: str) -> bool:
+    """La primera línea de un trabajo puede traer el nombre: corta y sin números («Afik ***»)."""
+    return 0 < len(linea.split()) <= 3 and not re.search(r"\d", linea)
 
 
 def reconoce_tecnico(texto: str, nombres: list[str]) -> dict[str, Any]:
@@ -104,7 +118,8 @@ def reconoce_tecnico(texto: str, nombres: list[str]) -> dict[str, Any]:
         return {"nombre": cerca[0], "candidatos": [], "solo_nombre": solo and len(palabras) == 1}
     if solo:   # parece un nombre que no está: se ofrecen los parecidos
         return {"nombre": None, "candidatos": _candidatos(primera, nombres), "solo_nombre": True}
-    return {"nombre": None, "candidatos": [], "solo_nombre": False}
+    return {"nombre": None, "candidatos": _candidatos(primera, nombres) if _parece_nombre(primera) else [],
+            "solo_nombre": False}
 
 
 # ─────────────────────────────── semana (§4) ───────────────────────────────
@@ -243,15 +258,36 @@ def fila_desde_ia(ia: dict[str, Any], c: Trabajo) -> dict[str, Any]:
     return fila
 
 
-def bloqueo(db: Session, fila: dict[str, Any], excluir_id: int | None = None) -> str | None:
+def _mismo_job(db: Session, job_name: str):
+    return db.query(registrosSchemma).filter(func.upper(func.trim(registrosSchemma.job_name)) == job_name.strip().upper())
+
+
+def _dia_colombia(cuando: datetime | None) -> str | None:
+    if not cuando:
+        return None
+    d = cuando - timedelta(hours=5)
+    return f"{d.day} {MESES[d.month - 1]}"
+
+
+def ya_registrado(db: Session, job_name: str | None) -> dict[str, Any] | None:
+    """Dónde está un job que ya existe, para decirlo en vez de solo bloquearlo."""
+    reg = _mismo_job(db, job_name).order_by(registrosSchemma.id).first() if job_name else None
+    if not reg:
+        return None
+    sem = reg.semana
+    return {"job_name": reg.job_name, "nombre": reg.nombre, "valor_servicio": reg.valor_servicio,
+            "semana": f"{texto_rango(sem.fecha_inicio)} de {sem.fecha_inicio.year}" if sem and sem.fecha_inicio else None,
+            "guardado": _dia_colombia(reg.created_at)}
+
+
+def bloqueo(db: Session, fila: dict[str, Any], excluir_id: int | None = None, permitir_repetido: bool = False) -> str | None:
     """El primer 🔴 que impide que el trabajo entre (o None). `excluir_id`: el propio trabajo, al corregirlo."""
     if fila["valor_servicio"] <= 0:
         return "sin_valor"
     if fila["tipo_pago"] == "MIXTO" and (fila["valor_efectivo"] <= 0 or fila["valor_tarjeta"] <= 0):
         return "mixto_sin_reparto"
-    if fila["job_name"]:
-        q = db.query(registrosSchemma).filter(
-            func.upper(func.trim(registrosSchemma.job_name)) == fila["job_name"].strip().upper())
+    if fila["job_name"] and not permitir_repetido:
+        q = _mismo_job(db, fila["job_name"])
         if excluir_id is not None:
             q = q.filter(registrosSchemma.id != excluir_id)
         if q.first():
@@ -287,10 +323,16 @@ def _respuesta(m: MensajeBot, reg: registrosSchemma | None = None, **extra) -> d
         # Lo que sí se leyó, para que el formulario (fase 6) venga ya lleno y solo pida lo que falta.
         ia = json.loads(m.salida_ia or "{}") or {}
         r["leido"] = {k: ia.get(kia) for k, kia in CAMPOS_IA.items()}
+        db = object_session(m)
+        if m.estado == "repetido" and db is not None:
+            r["ya_registrado"] = ya_registrado(db, ia.get("job_name"))
+        if m.estado == "sin_tecnico" and db is not None and "candidatos" not in extra:
+            r["candidatos"] = reconoce_tecnico(m.texto, nombres_tecnicos(db))["candidatos"]
     return r
 
 
-def _intenta_crear(db: Session, m: MensajeBot, ia: dict[str, Any], semana: SemanaTecnico) -> registrosSchemma | None:
+def _intenta_crear(db: Session, m: MensajeBot, ia: dict[str, Any], semana: SemanaTecnico,
+                   permitir_repetido: bool = False) -> registrosSchemma | None:
     """Con la lectura y el técnico ya puestos en `m`, crea el trabajo o deja el 🔴 en `m.estado`."""
     contratos = db.query(Trabajo).filter(Trabajo.nombre == m.tecnico).order_by(Trabajo.id).all()
     c = elegir_contrato(contratos, ia.get("job_type"))
@@ -298,11 +340,13 @@ def _intenta_crear(db: Session, m: MensajeBot, ia: dict[str, Any], semana: Seman
         m.estado = "sin_contrato"
         return None
     fila = fila_desde_ia(ia, c)
-    motivo = bloqueo(db, fila)
+    motivo = bloqueo(db, fila, permitir_repetido=permitir_repetido)
     if motivo:
         m.estado = motivo
         return None
     alertas = servicio_alertas.amarillas(db, fila, c, semana, ia)
+    if permitir_repetido and fila["job_name"] and _mismo_job(db, fila["job_name"]).first():
+        alertas.append({"codigo": "repetido", "texto": "Este job ya estaba registrado y se registró de nuevo a propósito."})
     reg = registrosSchemma(semana_id=semana.id, origen="bot", validacion=POR_VALIDAR, mensaje_id=m.id,
                            alertas=json.dumps(alertas, ensure_ascii=False) if alertas else None, **fila)
     db.add(reg)
@@ -310,6 +354,48 @@ def _intenta_crear(db: Session, m: MensajeBot, ia: dict[str, Any], semana: Seman
     servicio_calculo.recalcula(db, reg)
     m.estado, m.registro_id = "creado", reg.id
     return reg
+
+
+def _llave_de_grupo(m: MensajeBot, ia: dict[str, Any]) -> str:
+    return f"JOB:{str(ia['job_name']).strip().upper()}" if ia.get("job_name") else f"TXT:{_norm(m.texto)}"
+
+
+def resuelve_grupo(db: Session, ids: list[int], accion: str, elegido: int | None = None) -> dict[str, Any]:
+    """Lo que se eligió ante un trabajo repetido: «uno» (el primero), «elegido», «todos» o «ninguno». Lo que ya se
+    resolvió no se toca, así un botón viejo no registra dos veces."""
+    ms = [m for m in (db.get(MensajeBot, i) for i in ids) if m and m.estado in ("duda_grupo", "repetido")]
+    if not ms:
+        return {"estado": "ya_resuelto", "resultados": []}
+    if accion == "uno":
+        van = ms[:1]
+    elif accion == "elegido":
+        van = [m for m in ms if m.id == elegido]
+    elif accion == "todos":
+        van = ms
+    else:
+        van = []
+    resultados = []
+    for m in ms:
+        if m not in van:
+            m.estado = "descartado"
+            continue
+        ia = json.loads(m.salida_ia or "{}") or {}
+        reg = None
+        if not m.tecnico:
+            m.estado = "sin_tecnico"
+        else:
+            reg = _intenta_crear(db, m, ia, asegura_semana(db, m.semana), permitir_repetido=accion == "todos")
+        db.flush()
+        resultados.append(_respuesta(m, reg))
+    db.commit()
+    return {"estado": "resuelto", "resultados": resultados}
+
+
+def busca_tecnico(db: Session, texto: str) -> dict[str, Any]:
+    """Lo que escribieron tras «Escribir otro nombre»: el nombre exacto, o hasta 5 parecidos."""
+    nombres = nombres_tecnicos(db)
+    exacto = {_norm(n): n for n in nombres}.get(_norm(texto))
+    return {"exacto": exacto, "candidatos": [] if exacto else _candidatos(texto, nombres)}
 
 
 def crea_trabajos(db: Session, semana_label: str, mensajes: list[dict[str, Any]], tecnico_tanda: str | None = None,
@@ -321,7 +407,9 @@ def crea_trabajos(db: Session, semana_label: str, mensajes: list[dict[str, Any]]
     semana = asegura_semana(db, semana_label)
     nombres = nombres_tecnicos(db)
     tanda = tanda or uuid.uuid4().hex[:12]
-    resultados = []
+    resultados: list[Any] = []
+    leidos: list[tuple[int, MensajeBot, dict[str, Any], dict[str, Any]]] = []
+    ya_leidos: dict[str, tuple[dict, dict]] = {}        # el mismo texto no se paga dos veces
     for item in mensajes:
         texto = (item.get("texto") or "").strip()
         wamid = item.get("wamid")
@@ -341,11 +429,38 @@ def crea_trabajos(db: Session, semana_label: str, mensajes: list[dict[str, Any]]
                        tecnico=quien["nombre"] or tecnico_tanda, tanda=tanda, recibido=_fecha_iso(item.get("recibido")))
         db.add(m)
         db.flush()
-        ia, uso = lector(texto)
+        if texto in ya_leidos:
+            ia, uso = dict(ya_leidos[texto][0]), {**ya_leidos[texto][1], "tokens_entrada": 0, "tokens_salida": 0}
+        else:
+            ia, uso = lector(texto)
+            ya_leidos[texto] = (dict(ia), uso)
         m.salida_ia = json.dumps(ia, ensure_ascii=False)
         m.modelo, m.version_prompt = uso.get("modelo"), uso.get("version_prompt")
         m.tokens_entrada, m.tokens_salida, m.costo_usd = uso.get("tokens_entrada"), uso.get("tokens_salida"), costo(uso)
+        leidos.append((len(resultados), m, ia, quien))
+        resultados.append(None)
+
+    # Trabajos iguales en la tanda: el mismo número de job o, si no trae, el mismo texto.
+    grupos: dict[str, list[tuple[int, MensajeBot, dict[str, Any], dict[str, Any]]]] = {}
+    for fila in leidos:
+        _, m, ia, _ = fila
+        if ia:
+            grupos.setdefault(_llave_de_grupo(m, ia), []).append(fila)
+    for pos, m, ia, quien in leidos:
+        grupo = grupos.get(_llave_de_grupo(m, ia), []) if ia else []
         reg = None
+        extra: dict[str, Any] = {"candidatos": quien["candidatos"]}
+        if len(grupo) > 1:
+            existe = ia.get("job_name") and _mismo_job(db, str(ia["job_name"])).first()
+            if not existe:
+                m.estado = "duda_grupo"
+                extra |= {"grupo": [x[1].id for x in grupo], "iguales": len({x[1].texto for x in grupo}) == 1}
+                resultados[pos] = _respuesta(m, None, **extra)
+                continue
+            if grupo[0][1] is not m:                # ya está registrado: se pregunta una sola vez, con el primero
+                m.estado = "descartado"
+                resultados[pos] = _respuesta(m, None)
+                continue
         if not ia:
             m.estado = "sin_lectura"
         elif not m.tecnico:
@@ -353,7 +468,7 @@ def crea_trabajos(db: Session, semana_label: str, mensajes: list[dict[str, Any]]
         else:
             reg = _intenta_crear(db, m, ia, semana)
         db.flush()
-        resultados.append(_respuesta(m, reg, candidatos=quien["candidatos"]))
+        resultados[pos] = _respuesta(m, reg, **extra)
     db.commit()
     return {"resultados": resultados, "tecnico_tanda": tecnico_tanda, "tanda": tanda, "semana": semana.semana}
 
@@ -411,7 +526,7 @@ def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None) -
     """Se respondió CITANDO el mensaje de un trabajo («son 320 cash»). La IA vuelve a leer el mensaje original con la
     corrección al final (la corrección manda) y SOLO ese trabajo cambia. Devuelve también `antes`, para [Deshacer]."""
     m = db.query(MensajeBot).filter(MensajeBot.wamid == wamid).first() if wamid else None
-    if not m or m.estado in ("borrado", "deshecho"):
+    if not m or m.estado in ("borrado", "deshecho", "descartado"):
         return {"estado": "no_es_trabajo"}
     reg = db.get(registrosSchemma, m.registro_id) if m.registro_id else None
     if reg is not None and reg.validacion != POR_VALIDAR:
@@ -437,7 +552,7 @@ def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None) -
         if not m.tecnico:
             m.estado = "sin_tecnico"
         db.commit()
-        return _respuesta(m, nuevo)
+        return _respuesta(m, nuevo, **({"candidatos": quien["candidatos"]} if quien["candidatos"] else {}))
     contratos = db.query(Trabajo).filter(Trabajo.nombre == m.tecnico).order_by(Trabajo.id).all()
     c = elegir_contrato(contratos, ia.get("job_type"))
     if not c:

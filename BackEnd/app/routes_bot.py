@@ -96,6 +96,25 @@ def crear_trabajos(body: TandaBody, db: Session = Depends(get_db)):
                                       tecnico_tanda=body.tecnico_tanda, tanda=body.tanda)
 
 
+class ResolverBody(BaseModel):
+    ids: List[int]
+    accion: str
+    elegido: Optional[int] = None
+
+
+@router.post("/resolver")
+def resolver(body: ResolverBody, db: Session = Depends(get_db)):
+    """Se eligió qué hacer con un job repetido: uno, elegido, todos o ninguno."""
+    if body.accion not in ("uno", "elegido", "todos", "ninguno"):
+        raise HTTPException(status_code=400, detail="Esa opción no existe")
+    return servicio_bot.resuelve_grupo(db, body.ids, body.accion, body.elegido)
+
+
+@router.post("/buscar-tecnico")
+def buscar_tecnico(body: TextoBody, db: Session = Depends(get_db)):
+    return servicio_bot.busca_tecnico(db, body.texto)
+
+
 @router.post("/mensajes/{mensaje_id}/completar")
 def completar(mensaje_id: int, body: CompletarBody, db: Session = Depends(get_db)):
     r = servicio_bot.completa(db, mensaje_id, body.cambios)

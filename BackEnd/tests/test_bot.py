@@ -353,3 +353,75 @@ def test_metricas_y_semanas_para_el_panel(cliente, sesion):
     assert [x["fecha_inicio"] for x in m["semanas"]] == sorted(x["fecha_inicio"] for x in m["semanas"])
     d = cliente.get("/api/bot/semana", headers=sesion, params={"semana": sem}).json()
     assert d["existe"] and d["tecnicos"][0]["tecnico"] == "AFIK" and "bloqueados_lista" in d
+
+
+# ── Dudas: técnico, repetidos y trabajos iguales ──
+UNO = {"job_name": "DUDA-1", "job_type": "LOCKOUT", "valor_servicio": 300, "tipo_pago": "CASH"}
+
+
+def test_si_no_sabe_el_tecnico_da_hasta_cinco_opciones_que_contienen_el_nombre():
+    nombres = ["AFIK NM", "AFIK COLUMBIA", "AFIK GREENVILLE", "NICK"]
+    assert servicio_bot.reconoce_tecnico("Afik ***\nLockout 300 cash", nombres)["candidatos"] == \
+        ["AFIK COLUMBIA", "AFIK GREENVILLE", "AFIK NM"]
+    muchos = [f"AFIK {n}" for n in "ABCDEFG"]
+    assert len(servicio_bot.reconoce_tecnico("Afik\nx 300", muchos)["candidatos"]) == 5
+    assert servicio_bot.reconoce_tecnico("American Services Job 12\nx", nombres)["candidatos"] == []
+
+
+def test_un_job_ya_registrado_dice_donde_esta_y_se_puede_registrar_de_nuevo():
+    primero = _tanda([{"texto": "NICK\nya", "wamid": "w-dup-1"}], {"ya": {**UNO, "job_name": "DUP-A"}})
+    assert primero["resultados"][0]["estado"] == "creado"
+    r = _tanda([{"texto": "NICK\nya otra", "wamid": "w-dup-2"}], {"ya otra": {**UNO, "job_name": "DUP-A"}})["resultados"][0]
+    assert r["estado"] == "repetido" and r["ya_registrado"]["nombre"] == "NICK" and r["ya_registrado"]["semana"]
+    db = SessionLocal()
+    forzado = servicio_bot.resuelve_grupo(db, [r["mensaje_id"]], "todos")["resultados"][0]
+    assert forzado["estado"] == "creado"
+    assert [a["codigo"] for a in forzado["registro"]["alertas"]].count("repetido") == 1
+    assert servicio_bot.resuelve_grupo(db, [r["mensaje_id"]], "todos")["estado"] == "ya_resuelto"
+    db.close()
+
+
+def _grupo(sufijo, textos, tabla):
+    r = _tanda([{"texto": t, "wamid": f"w-g-{sufijo}-{i}"} for i, t in enumerate(textos)], tabla)["resultados"]
+    assert all(x["estado"] == "duda_grupo" for x in r)
+    return r
+
+
+def test_trabajos_iguales_no_se_registran_hasta_elegir_y_el_mismo_texto_se_lee_una_vez():
+    llamadas = []
+
+    def lector(texto):
+        llamadas.append(texto)
+        return {**UNO, "job_name": "IGUAL-1"}, dict(USO)
+
+    r = servicio_bot.crea_trabajos(SessionLocal(), ACTUAL, [{"texto": "NICK\nigual", "wamid": f"w-i-{n}"} for n in range(2)],
+                                   lector=lector)["resultados"]
+    assert len(llamadas) == 1 and all(x["estado"] == "duda_grupo" for x in r) and r[0]["iguales"] is True
+    db = SessionLocal()
+    h = servicio_bot.resuelve_grupo(db, r[0]["grupo"], "uno")
+    assert [x["estado"] for x in h["resultados"]] == ["creado"]
+    assert db.get(MensajeBot, r[0]["grupo"][1]).estado == "descartado"
+    db.close()
+
+
+def test_mismo_job_con_texto_distinto_deja_elegir_y_ninguno_no_registra():
+    tabla = {"a": {**UNO, "job_name": "DIST-1"}, "b": {**UNO, "job_name": "DIST-1", "valor_servicio": 420}}
+    r = _grupo("d", ["NICK\na", "NICK\nb"], tabla)
+    assert r[0]["iguales"] is False
+    db = SessionLocal()
+    h = servicio_bot.resuelve_grupo(db, r[0]["grupo"], "elegido", r[0]["grupo"][1])
+    assert h["resultados"][0]["registro"]["valor_servicio"] == 420
+    db.close()
+    otra = {"c": {**UNO, "job_name": "DIST-2"}, "d": {**UNO, "job_name": "DIST-2", "valor_servicio": 420}}
+    r2 = _grupo("n", ["NICK\nc", "NICK\nd"], otra)
+    db = SessionLocal()
+    assert servicio_bot.resuelve_grupo(db, r2[0]["grupo"], "ninguno")["resultados"] == []
+    assert servicio_bot.ya_registrado(db, "DIST-2") is None
+    db.close()
+
+
+def test_si_el_job_ya_existia_y_llega_dos_veces_se_pregunta_una_sola_vez():
+    _tanda([{"texto": "NICK\ne0", "wamid": "w-e-0"}], {"e0": {**UNO, "job_name": "EX-1"}})
+    tabla = {"e1": {**UNO, "job_name": "EX-1"}, "e2": {**UNO, "job_name": "EX-1", "valor_servicio": 500}}
+    r = _tanda([{"texto": "NICK\ne1", "wamid": "w-e-1"}, {"texto": "NICK\ne2", "wamid": "w-e-2"}], tabla)["resultados"]
+    assert [x["estado"] for x in r] == ["repetido", "descartado"]
