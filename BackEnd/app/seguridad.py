@@ -30,6 +30,7 @@ from fastapi import Depends, HTTPException, Request, status
 VUELTAS = 210_000
 DURACION_SESION = 30 * 24 * 3600   # 30 días: el dueño no quiere entrar a cada rato (2026-11-06)
 INTENTOS, VENTANA = 5, 600
+VIDA_CODIGO = 600                  # 10 minutos para escribir el código del correo
 
 
 def _secreto() -> bytes:
@@ -97,6 +98,22 @@ def lee_pase(token: str) -> dict | None:
     return d if d and d.get("t") == "pase" else None
 
 
+def reto_de_codigo(uid: int, codigo: str, jti: str) -> str:
+    """Lo que el navegador guarda entre la clave y el código. Lleva una huella del código, no el código."""
+    return firma({"t": "codigo", "u": uid, "j": jti, "h": _huella_codigo(jti, codigo)}, VIDA_CODIGO)
+
+
+def lee_reto(reto: str, codigo: str) -> dict | None:
+    d = lee_firma(reto)
+    if not d or d.get("t") != "codigo":
+        return None
+    return d if hmac.compare_digest(d["h"], _huella_codigo(d["j"], codigo)) else None
+
+
+def _huella_codigo(jti: str, codigo: str) -> str:
+    return hmac.new(_secreto(), f"{jti}:{codigo}".encode(), hashlib.sha256).hexdigest()
+
+
 def enlace_excel(nombre: str, semana: str, dura: int = 7 * 24 * 3600) -> str:
     """El token de un enlace de Excel (un técnico, una semana). Dura 7 días por defecto."""
     return firma({"t": "excel", "n": nombre, "s": semana}, dura)
@@ -132,12 +149,6 @@ class Quien:
     usuario: int | None
 
 
-def sin_sesion() -> bool:
-    """🔴 TEMPORAL (pedido del dueño, 2026-11-06, mientras prueba): con esto la API queda ABIERTA para cualquiera con la
-    dirección. Para volver a exigir sesión: ERP_SIN_SESION=0, o quitar este interruptor (y el de GuardaSesion.jsx)."""
-    return os.getenv("ERP_SIN_SESION", "1") == "1"
-
-
 def requiere_acceso(request: Request) -> Quien:
     """La puerta de toda la API: una sesión válida o la llave del chat. Sin eso, 401."""
     llave = os.getenv("ERP_LLAVE_CHAT", "")
@@ -149,8 +160,6 @@ def requiere_acceso(request: Request) -> Quien:
         d = lee_firma(auth[7:].strip())
         if d and d.get("t") == "sesion":
             return Quien("persona", int(d["u"]))
-    if sin_sesion():
-        return Quien("anonimo", None)
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tu sesión terminó. Vuelve a entrar.")
 
 

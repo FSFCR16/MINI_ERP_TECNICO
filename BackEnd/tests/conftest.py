@@ -10,7 +10,6 @@ os.environ["POSTGRES_URL"] = f"sqlite:///{_BASE.as_posix()}"
 os.environ["API_KEY_CHAT"] = "sk-pruebas-sin-uso"
 os.environ["API_KEY_GROQ"] = "gsk-pruebas-sin-uso"
 os.environ["ERP_SECRETO"] = "secreto-de-las-pruebas-1234567890"
-os.environ["ERP_SIN_SESION"] = "0"
 os.environ["ERP_LLAVE_CHAT"] = "llave-del-chat-de-pruebas"
 os.environ["ERP_ORIGENES"] = "http://panel.local"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

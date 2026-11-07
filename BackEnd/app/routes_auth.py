@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import seguridad
+from app import correo, seguridad
 from app.db import get_db
 from app.models_bot import PaseUsado, UsuarioERP
 
@@ -30,7 +30,49 @@ def entrar(body: Entrada, db: Session = Depends(get_db)):
     if not u or not seguridad.verifica(body.clave, u.clave_hash):
         seguridad.anota_fallo(email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o clave incorrectos.")
-    seguridad.limpia_fallos(email)
+    if not correo.activo():        # sin correo configurado no se puede mandar el código: basta la clave
+        seguridad.limpia_fallos(email)
+        return {"token": seguridad.token_de_sesion(u.id), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
+    codigo = f"{secrets.randbelow(900000) + 100000}"
+    if not correo.enviar_codigo(u.email, codigo):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="No pudimos mandarte el código. Inténtalo de nuevo en un momento.")
+    return {"reto": seguridad.reto_de_codigo(u.id, codigo, secrets.token_hex(12)), "correo": _enmascara(u.email)}
+
+
+def _enmascara(email: str) -> str:
+    """d•••@hotmail.com: para saber a dónde llegó, sin mostrar el correo completo."""
+    nombre, _, dominio = email.partition("@")
+    return f"{nombre[:1]}•••@{dominio}"
+
+
+class Codigo(BaseModel):
+    reto: str
+    codigo: str
+
+
+@router.post("/codigo")
+def confirmar_codigo(body: Codigo, db: Session = Depends(get_db)):
+    """El segundo paso: el código del correo. Sirve una vez, y los fallos cuentan para el mismo freno que la clave."""
+    d = seguridad.lee_firma(body.reto)
+    if not d or d.get("t") != "codigo":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El código venció. Vuelve a empezar.")
+    u = db.get(UsuarioERP, int(d["u"]))
+    if not u or not u.activo:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ese usuario del ERP está desactivado.")
+    if seguridad.frenado(u.email):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail="Demasiados intentos. Espera 10 minutos y vuelve a intentar.")
+    if not seguridad.lee_reto(body.reto, body.codigo.strip()):
+        seguridad.anota_fallo(u.email)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ese código no es correcto.")
+    try:
+        db.add(PaseUsado(jti=d["j"]))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ese código ya se usó. Pide otro.")
+    seguridad.limpia_fallos(u.email)
     return {"token": seguridad.token_de_sesion(u.id), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
 
 
@@ -38,8 +80,6 @@ def entrar(body: Entrada, db: Session = Depends(get_db)):
 def yo(quien: seguridad.Quien = Depends(seguridad.requiere_acceso), db: Session = Depends(get_db)):
     if quien.tipo == "chat":
         return {"tipo": "chat", "nombre": "Bot del chat"}
-    if quien.tipo == "anonimo":
-        return {"tipo": "anonimo", "nombre": "Sin sesión"}
     u = db.get(UsuarioERP, quien.usuario)
     if not u or not u.activo:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tu sesión terminó. Vuelve a entrar.")

@@ -4,12 +4,12 @@ import time
 
 import pytest
 
-from app import seguridad
+from app import seguridad, correo
 from app.main import app as aplicacion
 
 
 def _rutas(app):
-    abiertas = {"/auth/entrar", "/auth/canjear", "/api/excel/{token}", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+    abiertas = {"/auth/entrar", "/auth/codigo", "/auth/canjear", "/api/excel/{token}", "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
     # /api/excel/{token} no pide sesión, pero sin una firma buena responde 403 (lo prueba test_bot.py)
     for r in app.routes:
         for m in sorted(getattr(r, "methods", set()) - {"HEAD", "OPTIONS"}):
@@ -111,3 +111,37 @@ def test_el_pase_solo_lo_pide_el_chat_y_vence(cliente, sesion, monkeypatch):
     real = time.time
     monkeypatch.setattr(seguridad.time, "time", lambda: real() + 61)
     assert cliente.post("/auth/canjear", json={"pase": pase}).status_code == 401
+
+
+def test_con_correo_activo_pide_el_codigo_y_sirve_una_sola_vez(cliente, usuario, monkeypatch):
+    enviados = []
+    monkeypatch.setenv("ERP_RESEND_KEY", "re_prueba")
+    monkeypatch.setattr(correo, "enviar_codigo", lambda para, codigo: enviados.append((para, codigo)) or True)
+    r = cliente.post("/auth/entrar", json={"email": usuario[0], "clave": usuario[1]}).json()
+    assert "token" not in r and r["reto"] and "•••@" in r["correo"] and enviados[0][0] == usuario[0]
+    malo = cliente.post("/auth/codigo", json={"reto": r["reto"], "codigo": "000000"})
+    assert malo.status_code == 401
+    bien = cliente.post("/auth/codigo", json={"reto": r["reto"], "codigo": enviados[0][1]})
+    assert bien.status_code == 200 and bien.json()["token"]
+    assert cliente.post("/auth/codigo", json={"reto": r["reto"], "codigo": enviados[0][1]}).status_code == 401
+    seguridad.limpia_fallos(usuario[0])
+
+
+def test_una_clave_mala_no_manda_ningun_codigo(cliente, usuario, monkeypatch):
+    enviados = []
+    monkeypatch.setenv("ERP_RESEND_KEY", "re_prueba")
+    monkeypatch.setattr(correo, "enviar_codigo", lambda para, codigo: enviados.append(para) or True)
+    assert cliente.post("/auth/entrar", json={"email": usuario[0], "clave": "otra-clave"}).status_code == 401
+    assert enviados == []
+    seguridad.limpia_fallos(usuario[0])
+
+
+def test_si_el_correo_falla_no_entra(cliente, usuario, monkeypatch):
+    monkeypatch.setenv("ERP_RESEND_KEY", "re_prueba")
+    monkeypatch.setattr(correo, "enviar_codigo", lambda para, codigo: False)
+    assert cliente.post("/auth/entrar", json={"email": usuario[0], "clave": usuario[1]}).status_code == 503
+
+
+def test_otro_token_no_sirve_de_reto(cliente, usuario):
+    falso = seguridad.firma({"t": "sesion", "u": 1, "j": "x", "h": "y"}, 60)
+    assert cliente.post("/auth/codigo", json={"reto": falso, "codigo": "123456"}).status_code == 401
