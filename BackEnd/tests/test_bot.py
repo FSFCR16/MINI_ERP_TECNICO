@@ -307,7 +307,7 @@ def test_corregir_citando_cambia_solo_ese_trabajo_y_se_puede_deshacer():
     assert (reg.valor_servicio, reg.total) == (300, 152.5)
     db = SessionLocal()
     m = db.query(MensajeBot).filter(MensajeBot.wamid == "w-k-1").first()
-    assert m.tokens_entrada == 2000 and m.costo_usd == 0.0004                  # la corrección también cuenta
+    assert m.tokens_entrada == 1000                                            # «son 320» lo entiende el código: sin IA
     db.close()
 
 
@@ -320,7 +320,7 @@ def test_corregir_un_rojo_lo_deja_entrar_y_otras_respuestas():
     assert r["estado"] == "creado" and r["registro"]["total"] == 152.5
     assert _corrige("w-no-existe", "300", {})["estado"] == "no_es_trabajo"
     # una corrección que lo dejaría sin calcular no se aplica
-    r2 = _corrige("w-z-1", "0", {"CORRECCIÓN (lo que diga aquí manda sobre lo anterior): 0":
+    r2 = _corrige("w-z-1", "son 0", {"CORRECCIÓN (lo que diga aquí manda sobre lo anterior): 0":
                                  {**CASH300, "valor_servicio": 0}})
     assert r2["estado"] == "sin_valor" and "No cambié nada" in r2["motivo"]
     assert _reg(r["registro"]["id"]).valor_servicio == 300

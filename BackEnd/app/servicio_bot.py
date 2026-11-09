@@ -23,7 +23,7 @@ from typing import Any, Callable
 from sqlalchemy import func
 from sqlalchemy.orm import Session, object_session
 
-from app import calculo, servicio_alertas, servicio_calculo
+from app import calculo, correccion, servicio_alertas, servicio_calculo
 from app.controllers import exporToExcelController, parse_ticket_con_uso, validarTecnicoSemana
 from app.models import SemanaTecnico, Trabajo, registrosSchemma
 from app.models_bot import MensajeBot
@@ -524,7 +524,8 @@ CAMPOS_FILA = ["tecnico_id", "nombre", "job", "job_name", "valor_servicio", "val
                "partes_tecnico", "partes_gil", "tech", "tipo_pago", "porcentaje_tecnico", "porcentaje_cc", "minimo",
                "adicional_dolar", "aplica_dolar_empresa", "dolar_adicional_empresa", "is_cash", "alertas", "total"]
 CAMPOS_VISIBLES = {"valor_servicio": "valor", "tipo_pago": "pago", "valor_efectivo": "cash", "valor_tarjeta": "tarjeta",
-                   "partes_tecnico": "partes técnico", "partes_gil": "partes Gil", "tech": "to tech", "job": "job",
+                   "partes_tecnico": "partes técnico", "partes_gil": "partes Gil", "tech": "to tech",
+                   "porcentaje_cc": "comisión tarjeta", "is_cash": "cc como cash", "job": "job",
                    "job_name": "número", "nombre": "técnico", "total": "total"}
 
 
@@ -532,15 +533,19 @@ def _foto(reg: registrosSchemma) -> dict[str, Any]:
     return {k: getattr(reg, k) for k in CAMPOS_FILA}
 
 
-def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None) -> dict[str, Any]:
-    """Se respondió CITANDO el mensaje de un trabajo («son 320 cash»). La IA vuelve a leer el mensaje original con la
-    corrección al final (la corrección manda) y SOLO ese trabajo cambia. Devuelve también `antes`, para [Deshacer]."""
+def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None,
+            interprete: correccion.Interprete | None = None) -> dict[str, Any]:
+    """Se respondió CITANDO el mensaje de un trabajo (la ficha que manda el bot la resuelve el chat). Si el trabajo ya entró, se EDITA tal
+    como está ahora (`edita`): las correcciones se acumulan. Si era un 🔴 que no había entrado, se vuelve a leer el
+    mensaje con la corrección al final, como antes. Devuelve también `antes`, para [Deshacer]."""
     m = db.query(MensajeBot).filter(MensajeBot.wamid == wamid).first() if wamid else None
     if not m or m.estado in ("borrado", "deshecho", "descartado"):
         return {"estado": "no_es_trabajo"}
     reg = db.get(registrosSchemma, m.registro_id) if m.registro_id else None
     if reg is not None and reg.validacion != POR_VALIDAR:
         return {**_respuesta(m, reg), "estado": "ya_validado", "motivo": "Ya está validado: corrígelo en el panel."}
+    if reg is not None:
+        return edita(db, reg, texto, interprete, mensaje=m)
     quien = reconoce_tecnico(texto, nombres_tecnicos(db))
     lector = lector or _lector_por_defecto
     ia, uso = lector(f"{m.texto}\n\nCORRECCIÓN (lo que diga aquí manda sobre lo anterior): {texto}")
@@ -585,6 +590,72 @@ def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None) -
                if antes[k] != despues[k]]
     db.commit()
     return {**_respuesta(m, reg), "antes": antes, "cambios": cambios}
+
+
+def ficha(reg: registrosSchemma) -> dict[str, Any]:
+    """Todo el trabajo como está guardado, para que el chat lo muestre entero después de corregir."""
+    return {"id": reg.id, "job_name": (reg.job_name or "").strip(), "nombre": reg.nombre, "job": reg.job,
+            "semana": reg.semana.semana if reg.semana else None,
+            **{k: getattr(reg, k) for k in correccion.CAMPOS}, "total": reg.total}
+
+
+def edita(db: Session, reg: registrosSchemma, texto: str, interprete: correccion.Interprete | None = None,
+          mensaje: MensajeBot | None = None) -> dict[str, Any]:
+    """D-350 · Corregir = editar el trabajo COMO ESTÁ. El código entiende lo de siempre y la IA solo traduce lo demás a
+    una lista cerrada de campos (`correccion`). Lo que no se nombra no se toca. «Partes» sin decir de quién y con
+    partes en los dos lados (o en ninguno) → `estado: ambiguo`: el chat pregunta [Técnico] [Gil] [Ambas]."""
+    m = mensaje or db.query(MensajeBot).filter(MensajeBot.registro_id == reg.id).first()
+    if reg.validacion != POR_VALIDAR:
+        return {"estado": "ya_validado", "motivo": "Ya está validado: corrígelo en el panel.", "ficha": ficha(reg)}
+    actual = _foto(reg)
+    cambios, uso = correccion.interpreta(texto, actual, interprete)
+    if uso and m is not None:                              # lo que gastó la IA queda en el mensaje del trabajo
+        m.tokens_entrada = (m.tokens_entrada or 0) + (uso.get("tokens_entrada") or 0)
+        m.tokens_salida = (m.tokens_salida or 0) + (uso.get("tokens_salida") or 0)
+        m.costo_usd = round((m.costo_usd or 0) + costo(uso), 6)
+    base = {"mensaje_id": m.id if m else None, "registro": {"id": reg.id, "job_name": (reg.job_name or "").strip()}}
+    resueltos = correccion.resuelve_partes(dict(cambios), actual)
+    if resueltos is None:
+        db.commit()
+        return {**base, "estado": "ambiguo", "valor": cambios[correccion.PARTES], "ficha": ficha(reg),
+                "motivo": "¿Las partes son del técnico o de Gil?"}
+    if not resueltos:
+        db.commit()
+        return {**base, "estado": "sin_cambios", "ficha": ficha(reg),
+                "motivo": "No entendí qué cambiar. Escribe, por ejemplo: «partes gil 0», «comisión tarjeta 12», «cc como cash»."}
+    fila = {**actual, **resueltos}
+    tipo = str(fila["tipo_pago"] or "CASH").upper()
+    fila["tipo_pago"] = tipo
+    if tipo != "MIXTO":                                    # fuera de MIXTO no hay reparto (como al crear)
+        fila["valor_efectivo"] = fila["valor_tarjeta"] = 0.0
+    contrato = db.get(Trabajo, reg.tecnico_id) if reg.tecnico_id else None
+    if "porcentaje_cc" not in resueltos and {"valor_servicio", "tipo_pago", "valor_tarjeta"} & set(resueltos):
+        # cambió de dónde sale la comisión y nadie la dio a mano: se vuelve a sacar del % del contrato
+        fila["porcentaje_cc"] = 0.0
+        if contrato is not None:
+            fila["porcentaje_cc"] = float(calculo.porcentaje_cc({**fila, "porcentaje_cc_base": contrato.porcentaje_cc})
+                                          .get("porcentaje_cc") or 0)
+    motivo = bloqueo(db, fila, excluir_id=reg.id)
+    if motivo:
+        db.commit()
+        return {**base, "estado": motivo, "ficha": ficha(reg), "motivo": MOTIVOS[motivo] + " No cambié nada."}
+    for k in correccion.CAMPOS:
+        setattr(reg, k, fila[k])
+    servicio_calculo.recalcula(db, reg)
+    despues = _foto(reg)
+    vistos = [{"campo": CAMPOS_VISIBLES[k], "antes": actual[k], "despues": despues[k]} for k in CAMPOS_VISIBLES
+              if actual[k] != despues[k]]
+    db.commit()
+    return {**base, "estado": "creado", "registro": {**servicio_calculo.fila_respuesta(reg), "nombre": reg.nombre},
+            "antes": actual, "cambios": vistos, "ficha": ficha(reg)}
+
+
+def edita_por_id(db: Session, registro_id: int, texto: str, interprete: correccion.Interprete | None = None) -> dict[str, Any]:
+    """/cambiar <job> y los botones [Técnico] [Gil] [Ambas]: lo mismo que citar, por el id del trabajo."""
+    reg = db.get(registrosSchemma, registro_id)
+    if reg is None:
+        return {"estado": "no_existe"}
+    return edita(db, reg, texto, interprete)
 
 
 def restaura(db: Session, registro_id: int, antes: dict[str, Any]) -> dict[str, Any]:

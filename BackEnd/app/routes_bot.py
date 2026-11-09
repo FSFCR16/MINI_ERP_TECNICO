@@ -138,6 +138,16 @@ def corregir(body: CorregirBody, db: Session = Depends(get_db)):
     return servicio_bot.corrige(db, body.wamid, body.texto)
 
 
+class CambiarBody(BaseModel):
+    texto: str
+
+
+@router.post("/trabajos/{registro_id}/cambiar")
+def cambiar(registro_id: int, body: CambiarBody, db: Session = Depends(get_db)):
+    """D-350 · /cambiar <job> y los botones de «¿partes de quién?»: edita el trabajo como está, por su id."""
+    return servicio_bot.edita_por_id(db, registro_id, body.texto)
+
+
 @router.post("/trabajos/{registro_id}/restaurar")
 def restaurar(registro_id: int, body: RestaurarBody, db: Session = Depends(get_db)):
     return servicio_bot.restaura(db, registro_id, body.antes)
