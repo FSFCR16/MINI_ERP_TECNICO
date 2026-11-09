@@ -467,7 +467,7 @@ Devuelve SOLO un JSON válido. Sin texto extra, sin markdown, sin explicaciones.
 Un número ES dinero relevante SOLO si cumple alguna de estas condiciones:
 1. Está acompañado de contexto de cash (cash, efectivo)
 2. Está acompañado de contexto de crédito (cc, card, credit, scanpay, zelle)
-3. Está acompañado de contexto de partes (parts, ccf, parts gil, parts company, p)
+3. Está acompañado de contexto de partes (parts, ccf, cp, parts gil, parts company, p)
 4. Está acompañado de contexto de pago al técnico (to tech, to technician, for tech)
 5. Por el contexto del mensaje parece ser el valor final del servicio
 
@@ -479,6 +479,7 @@ PARTES (NO son el valor del servicio, nunca se suman):
 - "10p" o "50p" o "$50p" → parts_tecnico=ese número, es la letra p pegada al número
 - "parts gil"      → parts_gil=ese valor
 - "10$ ccf"        → parts_gil=10
+- "40$ cp", "$40 cp", "cp 40" → parts_gil=40   (cp = company parts = partes de Gil; NO es la «p» del técnico)
 - "parts company", "part company", "company parts", "parte company" → parts_gil=ese valor
   (todo lo que sea "company" o "gil" en contexto de partes va a parts_gil)
 
@@ -545,7 +546,7 @@ VALOR CON TARJETA (valor_tarjeta):
 # ══════════════════════════════════════════════════════════════
  
 MODELO_LECTOR = "gpt-6-luna"
-VERSION_PROMPT = "2026-11-06"     # súbela cuando cambie SYSTEM_PROMPT: el historial del bot compara versiones
+VERSION_PROMPT = "2026-11-08"     # súbela cuando cambie SYSTEM_PROMPT: el historial del bot compara versiones
 
 
 def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:

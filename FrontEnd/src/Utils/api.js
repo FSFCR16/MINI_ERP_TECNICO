@@ -185,11 +185,13 @@ function CC(params) {
   const porcentajeT = params.porcentaje_tecnico
 
   // porcentaje_cc ya es un valor fijo en dólares — solo se descuenta, nunca se recalcula
+  // Con CC la plata la tiene Gil: sus partes se quitan PRIMERO del valor (igual que restarlas a mano) y ya no vuelven
+  // a aparecer (D-350). El neto va a centavos para que 292.9 - 100 sea 192.9. Igual en BackEnd/app/calculo.py.
+  const neto = Math.round((params.valor_servicio - params.partes_gil) * 100) / 100
   const valorRealTarjeta =
-    params.valor_servicio -
+    neto -
     params.porcentaje_cc -
-    params.partes_tecnico -
-    params.partes_gil
+    params.partes_tecnico
 
   const procesoTecnico = valorRealTarjeta * (porcentajeT / 100)
 
@@ -197,7 +199,7 @@ function CC(params) {
   ...params,
   total: formatearNumero((params.tech - params.porcentaje_cc + params.partes_tecnico - params.adicional_dolar) * -1)
   } 
-  if (params.valor_servicio <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
+  if (neto <= params.minimo + 25 && params.tipo_pago !== "MIXTO") {
     return {
       ...params,
       total: formatearNumero(
@@ -219,7 +221,7 @@ function CC(params) {
     return {
       ...params,
       total: formatearNumero(
-        (params.minimo - params.porcentaje_cc + params.partes_tecnico - params.partes_gil - params.adicional_dolar) * -1
+        (params.minimo - params.porcentaje_cc + params.partes_tecnico - params.adicional_dolar) * -1
       )
     }
   }

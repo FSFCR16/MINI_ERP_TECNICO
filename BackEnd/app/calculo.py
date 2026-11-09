@@ -16,6 +16,7 @@ se queda con el que traía) y que MIXTO no aplica el mínimo.
 
 from __future__ import annotations
 
+import math
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -46,18 +47,22 @@ def _cash(p: dict[str, Any]) -> dict[str, Any]:
 
 
 def _cc(p: dict[str, Any]) -> dict[str, Any]:
+    """Con CC la plata la tiene Gil. Las partes de Gil se quitan PRIMERO del valor (igual que si se restaran a mano) y
+    ya no vuelven a aparecer: dar las partes aparte o restarlas a mano da lo mismo (D-350, 2026-11-08; comprobado con
+    los 3.113 trabajos CC guardados). El neto se redondea a centavos para que 292.9 - 100 sea 192.9 y no 192.8999…"""
     porcentaje_t = p["porcentaje_tecnico"]
-    valor_real_tarjeta = p["valor_servicio"] - p["porcentaje_cc"] - p["partes_tecnico"] - p["partes_gil"]
+    neto = math.floor((p["valor_servicio"] - p["partes_gil"]) * 100 + 0.5) / 100   # = Math.round(x*100)/100 del panel
+    valor_real_tarjeta = neto - p["porcentaje_cc"] - p["partes_tecnico"]
     proceso_tecnico = valor_real_tarjeta * (porcentaje_t / 100)
     if p["tech"] != 0:
         return {**p, "total": formatear_numero((p["tech"] - p["porcentaje_cc"] + p["partes_tecnico"] - p["adicional_dolar"]) * -1)}
-    if p["valor_servicio"] <= p["minimo"] + 25 and p["tipo_pago"] != "MIXTO":
+    if neto <= p["minimo"] + 25 and p["tipo_pago"] != "MIXTO":
         return {**p, "total": formatear_numero(((valor_real_tarjeta / 2) - p["adicional_dolar"] + p["partes_tecnico"]) * -1)}
     if proceso_tecnico > p["minimo"] or p["tipo_pago"] == "MIXTO":
         return {**p, "total": formatear_numero((proceso_tecnico + p["partes_tecnico"] - p["adicional_dolar"]) * -1)}
     if 0 < proceso_tecnico <= p["minimo"]:
         return {**p, "total": formatear_numero(
-            (p["minimo"] - p["porcentaje_cc"] + p["partes_tecnico"] - p["partes_gil"] - p["adicional_dolar"]) * -1)}
+            (p["minimo"] - p["porcentaje_cc"] + p["partes_tecnico"] - p["adicional_dolar"]) * -1)}
     return p
 
 
