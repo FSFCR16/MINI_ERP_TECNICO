@@ -544,8 +544,8 @@ def corrige(db: Session, wamid: str, texto: str, lector: Lector | None = None,
     if not m or m.estado in ("borrado", "deshecho", "descartado"):
         return {"estado": "no_es_trabajo"}
     reg = db.get(registrosSchemma, m.registro_id) if m.registro_id else None
-    if reg is not None and reg.validacion != POR_VALIDAR:
-        return {**_respuesta(m, reg), "estado": "ya_validado", "motivo": "Ya está validado: corrígelo en el panel."}
+    if reg is not None and _cerrada(reg):
+        return {**_respuesta(m, reg), "estado": "semana_cerrada", "motivo": SEMANA_CERRADA}
     if reg is not None:
         return edita(db, reg, texto, interprete, mensaje=m)
     quien = reconoce_tecnico(texto, nombres_tecnicos(db))
@@ -607,8 +607,8 @@ def edita(db: Session, reg: registrosSchemma, texto: str, interprete: correccion
     una lista cerrada de campos (`correccion`). Lo que no se nombra no se toca. «Partes» sin decir de quién y con
     partes en los dos lados (o en ninguno) → `estado: ambiguo`: el chat pregunta [Técnico] [Gil] [Ambas]."""
     m = mensaje or db.query(MensajeBot).filter(MensajeBot.registro_id == reg.id).first()
-    if reg.validacion != POR_VALIDAR:
-        return {"estado": "ya_validado", "motivo": "Ya está validado: corrígelo en el panel.", "ficha": ficha(reg)}
+    if _cerrada(reg):
+        return {"estado": "semana_cerrada", "motivo": SEMANA_CERRADA, "ficha": ficha(reg)}
     actual = _foto(reg)
     cambios, uso = correccion.interpreta(texto, actual, interprete)
     if uso and m is not None:                              # lo que gastó la IA queda en el mensaje del trabajo
@@ -644,12 +644,30 @@ def edita(db: Session, reg: registrosSchemma, texto: str, interprete: correccion
     for k in correccion.CAMPOS:
         setattr(reg, k, fila[k])
     servicio_calculo.recalcula(db, reg)
+    if reg.validacion != POR_VALIDAR and m is not None:     # ya aprobado: el historial de validación queda al día
+        _anota_final(reg, m)
     despues = _foto(reg)
     vistos = [{"campo": CAMPOS_VISIBLES[k], "antes": actual[k], "despues": despues[k]} for k in CAMPOS_VISIBLES
               if actual[k] != despues[k]]
     db.commit()
     return {**base, "estado": "creado", "registro": {**servicio_calculo.fila_respuesta(reg), "nombre": reg.nombre},
             "antes": actual, "cambios": vistos, "ficha": ficha(reg)}
+
+
+def _cerrada(reg: registrosSchemma) -> bool:
+    return bool(reg.semana and reg.semana.estado == "cerrada")
+
+
+SEMANA_CERRADA = "Esa semana ya está cerrada: no se puede cambiar."
+
+
+def _anota_final(r: registrosSchemma, m: MensajeBot) -> None:
+    """Lo que quedó y qué campos difieren de lo que leyó la IA (§9: acierto por campo). Al validar y al corregir uno
+    ya aprobado."""
+    ia = json.loads(m.salida_ia or "{}") or {}
+    final = {k: getattr(r, k) for k in lectura_ia.CAMPOS_IA} | {"total": r.total, "tecnico": r.nombre}
+    m.datos_finales = json.dumps(final, ensure_ascii=False, default=str)
+    m.campos_corregidos = json.dumps([x["clave"] for x in lectura_ia.fallos(r, ia)])
 
 
 def edita_por_id(db: Session, registro_id: int, texto: str, interprete: correccion.Interprete | None = None) -> dict[str, Any]:
@@ -661,12 +679,12 @@ def edita_por_id(db: Session, registro_id: int, texto: str, interprete: correcci
 
 
 def restaura(db: Session, registro_id: int, antes: dict[str, Any]) -> dict[str, Any]:
-    """[Deshacer] de una corrección: vuelve a lo de antes (solo si sigue por validar)."""
+    """[Deshacer] de una corrección: vuelve a lo de antes (salvo semana cerrada)."""
     reg = db.get(registrosSchemma, registro_id)
     if reg is None:
         return {"estado": "no_existe"}
-    if reg.validacion != POR_VALIDAR:
-        return {"estado": "ya_validado"}
+    if _cerrada(reg):
+        return {"estado": "semana_cerrada"}
     for k in CAMPOS_FILA:
         if k in antes:
             setattr(reg, k, antes[k])
@@ -733,10 +751,11 @@ def pendientes(db: Session, semana_label: str) -> dict[str, Any]:
 
 def buscar(db: Session, job: str) -> list[dict[str, Any]]:
     k = (job or "").strip().upper()
-    if len(k) < 3:
+    if not k:
         return []
-    filas = (db.query(registrosSchemma).filter(func.upper(registrosSchemma.job_name).contains(k))
-             .order_by(registrosSchemma.id.desc()).limit(10).all())
+    columna = func.upper(func.trim(registrosSchemma.job_name))
+    filtro = columna.contains(k) if len(k) >= 3 else columna == k   # corto («G5»): exacto, no media base
+    filas = db.query(registrosSchemma).filter(filtro).order_by(registrosSchemma.id.desc()).limit(10).all()
     return [{**servicio_calculo.fila_respuesta(r), "nombre": r.nombre, "valor_servicio": r.valor_servicio,
              "tipo_pago": r.tipo_pago, "semana": r.semana.semana if r.semana else None,
              "validacion": r.validacion} for r in filas]
@@ -828,11 +847,7 @@ def valida(db: Session, ids: list[int]) -> int:
         r.validacion = None
         m = db.get(MensajeBot, r.mensaje_id) if r.mensaje_id else None
         if m:
-            ia = json.loads(m.salida_ia or "{}") or {}
-            final = {k: getattr(r, k) for k in lectura_ia.CAMPOS_IA} | {"total": r.total, "tecnico": r.nombre}
-            corregidos = [x["clave"] for x in lectura_ia.fallos(r, ia)]
-            m.datos_finales = json.dumps(final, ensure_ascii=False, default=str)
-            m.campos_corregidos = json.dumps(corregidos)
+            _anota_final(r, m)
     db.commit()
     return len(regs)
 
@@ -848,15 +863,26 @@ def nuevos(db: Session, nombre: str, semana_label: str, desde_id: int = 0) -> di
     return {"nuevos": len(ids), "ultimo_id": max(ids, default=desde_id)}
 
 
+COLOMBIA = timedelta(hours=5)    # Colombia no cambia de hora: UTC-5 todo el año
+
+
 def gasto_ia(db: Session, desde: date | None = None, hasta: date | None = None) -> dict[str, Any]:
-    q = db.query(func.count(MensajeBot.id), func.coalesce(func.sum(MensajeBot.tokens_entrada), 0),
-                 func.coalesce(func.sum(MensajeBot.tokens_salida), 0), func.coalesce(func.sum(MensajeBot.costo_usd), 0))
+    """Lo que gastó la IA del ERP (bot y «Pegar mensaje»), por días de COLOMBIA: la base guarda en UTC y un mensaje de
+    las 9 p. m. es del mismo día, no del siguiente. Sale también día por día para la gráfica de «Gasto de IA»."""
+    q = db.query(MensajeBot.created_at, MensajeBot.tokens_entrada, MensajeBot.tokens_salida, MensajeBot.costo_usd)
     if desde:
-        q = q.filter(MensajeBot.created_at >= datetime.combine(desde, datetime.min.time()))
+        q = q.filter(MensajeBot.created_at >= datetime.combine(desde, datetime.min.time()) + COLOMBIA)
     if hasta:
-        q = q.filter(MensajeBot.created_at < datetime.combine(hasta + timedelta(days=1), datetime.min.time()))
-    n, te, ts, usd = q.one()
-    return {"mensajes": n, "tokens_entrada": int(te), "tokens_salida": int(ts), "costo_usd": round(float(usd), 4)}
+        q = q.filter(MensajeBot.created_at < datetime.combine(hasta + timedelta(days=1), datetime.min.time()) + COLOMBIA)
+    n, te, ts, usd, dias = 0, 0, 0, 0.0, {}
+    for cuando, e, sal, c in q.all():
+        n, te, ts, usd = n + 1, te + (e or 0), ts + (sal or 0), usd + (c or 0)
+        if cuando is not None:
+            d = ((cuando.astimezone(timezone.utc).replace(tzinfo=None) if cuando.tzinfo else cuando) - COLOMBIA).date()
+            dm = dias.setdefault(d.isoformat(), [0, 0.0])
+            dm[0], dm[1] = dm[0] + 1, dm[1] + (c or 0)
+    return {"mensajes": n, "tokens_entrada": int(te), "tokens_salida": int(ts), "costo_usd": round(float(usd), 4),
+            "por_dia": [{"dia": d, "mensajes": m, "costo_usd": round(u, 6)} for d, (m, u) in sorted(dias.items())]}
 
 
 # ─────────────────────────────── para los paneles de GAELA (fase 7) ───────────────────────────────
@@ -908,10 +934,20 @@ def metricas(db: Session, n: int = 6) -> dict[str, Any]:
                          "mas_hace": max(t["jobs"], key=t["jobs"].get)})
     semanas = [s for s in semanas_con_totales(db, n)]
     semanas.reverse()   # de la más vieja a la más nueva, para la línea
-    ultima = [r for r in regs if sems and r.semana_id == sems[0].id]
     return {"semanas": semanas, "tecnicos": sorted(tecnicos, key=lambda x: -x["ventas"]), "pagos": pagos,
-            "comision_tarjeta": calculo.formatear_numero(comision),
-            "ia": {"periodo": lectura_ia.resumen(db, regs), "semana": lectura_ia.resumen(db, ultima)}}
+            "comision_tarjeta": calculo.formatear_numero(comision)}
+
+
+def lectura(db: Session, n: int = 6) -> dict[str, Any]:
+    """Métricas → «Lectura de la IA»: cuánto acierta la IA al leer los trabajos, por semana, en qué campos falla y
+    cuáles leyó mal. Sale solo de comparar lo leído con cómo quedó cada trabajo (`lectura_ia`); nadie marca nada."""
+    sems = db.query(SemanaTecnico).order_by(SemanaTecnico.fecha_inicio.desc()).limit(n).all()
+    ids = [s.id for s in sems]
+    regs = [] if not ids else db.query(registrosSchemma).filter(
+        registrosSchemma.semana_id.in_(ids), registrosSchemma.mensaje_id.isnot(None)).all()
+    semanas = [{"semana": s.semana, "texto": texto_rango(s.fecha_inicio),
+                **lectura_ia.resumen(db, [r for r in regs if r.semana_id == s.id])} for s in reversed(sems)]
+    return {"semanas": semanas, "periodo": lectura_ia.resumen(db, regs), "mal_leidos": lectura_ia.mal_leidos(db, regs)}
 
 
 def semana_por_tecnico(db: Session, semana_label: str) -> dict[str, Any]:

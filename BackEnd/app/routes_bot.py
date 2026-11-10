@@ -242,6 +242,11 @@ def metricas(n: int = 6, db: Session = Depends(get_db)):
     return servicio_bot.metricas(db, min(max(n, 1), 26))
 
 
+@router.get("/lectura-ia")
+def lectura_ia(n: int = 6, db: Session = Depends(get_db)):
+    return servicio_bot.lectura(db, min(max(n, 1), 26))
+
+
 @router.get("/semana")
 def semana_detalle(semana: str, db: Session = Depends(get_db)):
     return servicio_bot.semana_por_tecnico(db, semana)

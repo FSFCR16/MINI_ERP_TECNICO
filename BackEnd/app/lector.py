@@ -65,11 +65,12 @@ def comision(senal: dict[str, Any], calculada: float) -> float:
 
 def completa(ia: dict[str, Any], senal: dict[str, Any]) -> dict[str, Any]:
     """La lectura de la IA con lo exacto del código encima, con su nombre propio para que el panel y el bot lo
-    apliquen igual. Una app (Zelle, Cash App, Venmo) nunca es CASH: si la IA dijo CASH, es CC."""
+    apliquen igual. Con una app (Zelle, Cash App, Venmo) o con «ccf» hubo tarjeta: nunca es CASH; si la IA dijo
+    CASH, es CC (si dijo MIXTO, se queda MIXTO)."""
     if not ia:
         return ia
     tipo = str(ia.get("tipo_pago") or "CASH").upper()
-    if senal["app"] and tipo == "CASH":
+    if (senal["app"] or senal["ccf"] is not None) and tipo == "CASH":
         tipo = "CC"
     return {**ia, "tipo_pago": tipo, "sin_fee": senal["sin_fee"], "ccf": senal["ccf"],
             "porcentaje_tecnico": senal["porcentaje_tecnico"]}
@@ -86,7 +87,8 @@ Devuelve SOLO un JSON válido. Sin texto extra, sin markdown, sin explicaciones.
 - NUNCA inventes datos
 - NUNCA combines datos de campos distintos
 - Un número con % (ej. «40%») NO es dinero: ignóralo.
-- «ccf» con un número (ej. «ccf 13», «13 ccf») NO es dinero del servicio ni partes: ignóralo.
+- «ccf» con un número (ej. «ccf 13», «13 ccf») es la comisión de la tarjeta: NO es dinero del servicio ni partes
+  (ignora ese número), pero quiere decir que se pagó con tarjeta (CC, o MIXTO si también hubo cash).
 - Un número es dinero SOLO si va con contexto de pago, de partes o de pago al técnico, o si por el contexto es el
   valor final del servicio. Si no, ignóralo.
 

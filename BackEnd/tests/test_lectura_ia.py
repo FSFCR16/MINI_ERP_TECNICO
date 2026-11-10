@@ -86,13 +86,38 @@ def test_metricas_cuentan_solo_lo_definitivo(cliente, sesion):
                {"li-3": {**CASH300, "job_name": "LI-3"}, "li-4": {**CASH300, "job_name": "LI-4"}}, tecnico_tanda="AFIK")
     ids = [x["registro"]["id"] for x in r["resultados"]]
     db = SessionLocal()
-    antes = servicio_bot.metricas(db)["ia"]["semana"]
+    antes = servicio_bot.lectura(db)["periodo"]
     db.close()
     _edita(ids[1], "partes gil 20")
     cliente.post("/api/bot/validar", headers=sesion, json={"ids": ids})
     db = SessionLocal()
-    ia = servicio_bot.metricas(db)["ia"]["semana"]
+    lec = servicio_bot.lectura(db)
+    ia = lec["periodo"]
     db.close()
     assert ia["leidos"] == antes["leidos"] + 2 and ia["bien"] == antes["bien"] + 1
     assert any(f["campo"] == "partes Gil" for f in ia["falla_mas"])
     assert _reg(ids[0]).validacion is None
+    assert lec["semanas"][-1]["semana"] == ACTUAL and lec["semanas"][-1]["leidos"] >= 2
+    assert any(x["job_name"] == "LI-4" and x["fallos"][0]["campo"] == "partes Gil" for x in lec["mal_leidos"])
+    assert cliente.get("/api/bot/lectura-ia?n=4", headers=sesion).status_code == 200
+
+
+def test_el_gasto_de_ia_viene_por_dia():
+    from datetime import date, timedelta
+    db = SessionLocal()
+    g = servicio_bot.gasto_ia(db, date(2020, 1, 1), date.today() + timedelta(days=1))   # la base guarda en UTC
+    db.close()
+    assert g["por_dia"] and round(sum(d["costo_usd"] for d in g["por_dia"]), 4) == g["costo_usd"]
+    assert sum(d["mensajes"] for d in g["por_dia"]) == g["mensajes"]
+
+
+def test_el_gasto_cuenta_por_dia_de_colombia():
+    from datetime import date, datetime
+    db = SessionLocal()
+    db.add(MensajeBot(texto="noche", estado="panel", remitente="panel", costo_usd=0.25,
+                      created_at=datetime(2025, 3, 11, 2, 0)))          # 9 p. m. del 10 de marzo en Colombia
+    db.commit()
+    g = servicio_bot.gasto_ia(db, date(2025, 3, 10), date(2025, 3, 10))
+    assert g["mensajes"] == 1 and g["por_dia"] == [{"dia": "2025-03-10", "mensajes": 1, "costo_usd": 0.25}]
+    assert servicio_bot.gasto_ia(db, date(2025, 3, 11), date(2025, 3, 11))["mensajes"] == 0
+    db.close()

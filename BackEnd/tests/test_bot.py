@@ -327,7 +327,23 @@ def test_corregir_un_rojo_lo_deja_entrar_y_otras_respuestas():
     db = SessionLocal()
     servicio_bot.valida(db, [r["registro"]["id"]])
     db.close()
-    assert _corrige("w-z-1", "300 cash", {clave: CASH300})["estado"] == "ya_validado"
+    # ya aprobado TAMBIÉN se corrige (2026-11-09); lo único que lo impide es la semana cerrada
+    rid = r["registro"]["id"]
+    r3 = _corrige("w-z-1", "son 320 cash", {})
+    assert r3["estado"] == "creado" and _reg(rid).valor_servicio == 320 and _reg(rid).validacion is None
+    db = SessionLocal()
+    m = db.query(MensajeBot).filter(MensajeBot.registro_id == rid).first()
+    assert json.loads(m.campos_corregidos) == ["valor_servicio"]          # el historial de validación, al día
+    reg = db.get(registrosSchemma, rid)
+    reg.semana.estado = "cerrada"
+    db.commit()
+    db.close()
+    r4 = _corrige("w-z-1", "son 330 cash", {})
+    assert r4["estado"] == "semana_cerrada" and _reg(rid).valor_servicio == 320
+    db = SessionLocal()
+    db.get(registrosSchemma, rid).semana.estado = "abierta"
+    db.commit()
+    db.close()
 
 
 def test_corregir_por_http(cliente, sesion):

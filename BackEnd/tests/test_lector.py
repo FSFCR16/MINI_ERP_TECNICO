@@ -130,3 +130,25 @@ def test_corregir_a_zelle_quita_la_comision():
     assert _reg(rid).porcentaje_cc == 9
     _edita(rid, "fue zelle")
     assert _reg(rid).porcentaje_cc == 0
+
+
+def test_ccf_quiere_decir_tarjeta(monkeypatch):
+    # G5 del 2026-11-09: «412$ | 30$ parts | 17$ ccf» quedó CASH
+    _ia_falsa(monkeypatch, {"job_name": "G5", "valor_servicio": 412, "parts_tecnico": 30, "tipo_pago": "CASH"})
+    r, _ = controllers.parse_ticket_con_uso("Job: G5 | 412$ | 30$ parts | 17$ ccf")
+    assert r["tipo_pago"] == "CC" and r["ccf"] == 17
+    _ia_falsa(monkeypatch, {"job_name": "G6", "valor_servicio": 300, "tipo_pago": "MIXTO"})
+    assert controllers.parse_ticket_con_uso("G6 100 cash 200 card 9 ccf")[0]["tipo_pago"] == "MIXTO"   # se respeta
+
+
+def test_un_numero_de_job_corto_se_busca_exacto():
+    from app.db import SessionLocal
+    from app import servicio_bot
+    _crea("lec-g5", {**CC300, "job_name": "G5"})
+    _crea("lec-g55", {**CC300, "job_name": "G55"})
+    db = SessionLocal()
+    try:
+        assert [x["job_name"] for x in servicio_bot.buscar(db, "g5")] == ["G5"]
+        assert servicio_bot.buscar(db, "G") == []
+    finally:
+        db.close()

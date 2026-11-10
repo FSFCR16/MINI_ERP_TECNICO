@@ -85,6 +85,20 @@ def por_trabajo(db: Session, regs: list[registrosSchemma]) -> dict[int, dict[str
     return salida
 
 
+def mal_leidos(db: Session, regs: list[registrosSchemma], limite: int = 50) -> list[dict[str, Any]]:
+    """Los trabajos que la IA leyó distinto, del más nuevo al más viejo (la lista de «Lectura de la IA»)."""
+    lecturas = por_trabajo(db, regs)
+    salida = []
+    for r in sorted(regs, key=lambda x: -x.id):
+        if r.id in lecturas:
+            salida.append({"id": r.id, "job_name": (r.job_name or "").strip(), "tecnico": r.nombre,
+                           "semana": r.semana.semana if r.semana else None,
+                           "por_validar": r.validacion == POR_VALIDAR, **lecturas[r.id]})
+            if len(salida) >= limite:
+                break
+    return salida
+
+
 def resumen(db: Session, regs: list[registrosSchemma]) -> dict[str, Any]:
     """Acierto de la IA sobre trabajos DEFINITIVOS (no los de «Por validar») que nacieron de un mensaje."""
     ms = _mensajes(db, regs)
