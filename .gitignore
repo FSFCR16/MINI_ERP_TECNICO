@@ -7,3 +7,6 @@ __pycache__
 # local (plan del bot, 2026-11-06)
 BackEnd/*.sqlite3
 BackEnd/.pytest_cache/
+
+# comparaciones con la base: traen datos de clientes
+*.csv

@@ -26,6 +26,11 @@ export function aplicaServidor(lista, filasServidor, idDeFila = (r) => r.id_regi
             cambio[k] = despues
             if (k === "total") ajustes.push({ job_name: r.job_name || r.job || "", antes, despues })
         }
+        if ("lectura" in s && JSON.stringify(s.lectura ?? null) !== JSON.stringify(r.lectura ?? null)) {
+            // lo que la IA leyó distinto (el puntico): no es un ajuste del total, no lleva aviso
+            const conLectura = { ...(cambio ?? r), lectura: s.lectura }
+            return cambio ? { ...conLectura, _ajustado: ahora } : conLectura
+        }
         return cambio ? { ...cambio, _ajustado: ahora } : r
     })
     return { lista: nueva, ajustes }

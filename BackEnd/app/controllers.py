@@ -14,6 +14,9 @@ import json
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from fastapi.encoders import jsonable_encoder
+from app import lector, lectura_ia
+from app.models_bot import MensajeBot
 from sqlalchemy.exc import IntegrityError
 
 def obtener_nombres(db: Session):
@@ -90,6 +93,33 @@ def traerInformacionTecnico(db: Session, nombre: str):
 
     return informacion
 
+def _con_lectura(db: Session, regs: list) -> list[dict]:
+    """Lo que el panel recibe de cada fila guardada, con su `lectura` (el puntico: lo que la IA leyó distinto)."""
+    lecturas = lectura_ia.por_trabajo(db, regs)
+    return [{**servicio_calculo.fila_respuesta(r), "lectura": lecturas.get(r.id)} for r in regs]
+
+
+def _mensaje_del_panel(db: Session, mensaje_id: int | None) -> int | None:
+    """El mensaje pegado en el panel del que salió la fila, si existe y todavía no tiene trabajo."""
+    if not mensaje_id:
+        return None
+    m = db.get(MensajeBot, mensaje_id)
+    return m.id if m and m.remitente == "panel" and not m.registro_id else None
+
+
+def lee_del_panel(db: Session, texto: str) -> dict:
+    """«Pegar mensaje» del panel: lo lee la IA (como el bot) y lo GUARDA con lo que leyó, para saber después si lo
+    leyó bien (`lectura_ia`). El gasto entra en «Gasto de IA» igual que el del bot."""
+    from app.servicio_bot import costo                     # import aquí: servicio_bot importa este módulo
+    resultado, uso = parse_ticket_con_uso(texto)
+    m = MensajeBot(remitente="panel", texto=texto, estado="panel", salida_ia=json.dumps(resultado, ensure_ascii=False),
+                   modelo=uso.get("modelo"), version_prompt=uso.get("version_prompt"),
+                   tokens_entrada=uso.get("tokens_entrada"), tokens_salida=uso.get("tokens_salida"), costo_usd=costo(uso))
+    db.add(m)
+    db.commit()
+    return {**resultado, "mensaje_id": m.id} if resultado else resultado
+
+
 def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, semana: str):
     if not registros:
         raise HTTPException(status_code=400, detail="No se enviaron registros")
@@ -102,7 +132,7 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
         raise HTTPException(status_code=404, detail="La semana solicitada no existe")
 
     try:
-        registros_creados = []
+        creados = []
         for r in registros:
             nuevo = registrosSchemma(
                 tecnico_id=r.id_tecnico,
@@ -124,15 +154,19 @@ def envioRegistrosDB(registros: List[SemanaTecnicoSchemaFront], db: Session, sem
                 # Plan del bot, fase 2: lo que la fórmula usa (sin él, del contrato) y de dónde vino
                 is_cash=r.is_cash, aplica_dolar_empresa=r.aplica_dolar_empresa, adicional_dolar=r.adicional_dolar,
                 minimo=r.minimo, dolar_adicional_empresa=r.dolar_adicional_empresa, origen="panel",
+                mensaje_id=_mensaje_del_panel(db, r.mensaje_id),
             )
             db.add(nuevo)
             db.flush()
+            if nuevo.mensaje_id:
+                db.get(MensajeBot, nuevo.mensaje_id).registro_id = nuevo.id
             # El servidor manda: recalcula con la misma fórmula del panel (anota si no coincide).
             servicio_calculo.recalcula(db, nuevo, r.total)
-            registros_creados.append(servicio_calculo.fila_respuesta(nuevo))
+            creados.append(nuevo)
 
+        respuesta = _con_lectura(db, creados)
         db.commit()
-        return {"message": "Registros agregados correctamente", "registros": registros_creados}
+        return {"message": "Registros agregados correctamente", "registros": respuesta}
 
     except Exception as e:
         db.rollback()
@@ -155,7 +189,8 @@ def obtenerRegistrosSemana( nombre: str, semana: str, db: Session):
         registrosSchemma.nombre == nombre
     ).order_by(registrosSchemma.created_at.asc()).all()
 
-    return registros
+    lecturas = lectura_ia.por_trabajo(db, registros)       # el puntico de la tabla: lo que la IA leyó distinto
+    return [{**jsonable_encoder(r), "lectura": lecturas.get(r.id)} for r in registros]
 
     
 def obtenerHistorialTenico(nombre:str,db: Session):
@@ -451,102 +486,16 @@ def eliminarTecnicoSemana(data, db: Session):
 APIKEY = os.getenv("API_KEY_CHAT")
 client = OpenAI(api_key=APIKEY)
 # ══════════════════════════════════════════════════════════════
-#  PROMPT
+#  PROMPT: vive en app/lector.py, ordenado por secciones
 # ══════════════════════════════════════════════════════════════
-SYSTEM_PROMPT = """
-Eres un extractor de datos de tickets de servicio de cerrajería.
-Devuelve SOLO un JSON válido. Sin texto extra, sin markdown, sin explicaciones.
 
-━━━ REGLAS GENERALES ━━━
-- Si un campo no está claro en el mensaje → null
-- NUNCA inventes datos
-- NUNCA combines datos de campos distintos
 
-━━━ REGLAS DE DINERO ━━━
-
-Un número ES dinero relevante SOLO si cumple alguna de estas condiciones:
-1. Está acompañado de contexto de cash (cash, efectivo)
-2. Está acompañado de contexto de crédito (cc, card, credit, scanpay, zelle)
-3. Está acompañado de contexto de partes (parts, ccf, cp, parts gil, parts company, p)
-4. Está acompañado de contexto de pago al técnico (to tech, to technician, for tech)
-5. Por el contexto del mensaje parece ser el valor final del servicio
-
-Si un número NO cumple ninguna — ignorarlo completamente.
-
-PARTES (NO son el valor del servicio, nunca se suman):
-- "20$ parts Afik" → parts_tecnico=20, parts_tecnico_nombre="Afik"
-- "50$ parts"      → parts_tecnico=50, parts_tecnico_nombre=null
-- "10p" o "50p" o "$50p" → parts_tecnico=ese número, es la letra p pegada al número
-- "parts gil"      → parts_gil=ese valor
-- "10$ ccf"        → parts_gil=10
-- "40$ cp", "$40 cp", "cp 40" → parts_gil=40   (cp = company parts = partes de Gil; NO es la «p» del técnico)
-- "parts company", "part company", "company parts", "parte company" → parts_gil=ese valor
-  (todo lo que sea "company" o "gil" en contexto de partes va a parts_gil)
-
-PAGO AL TÉCNICO (tech) — dinero asignado directamente al técnico, NO es parte ni servicio:
-- "100$ to tech", "to technician 100", "for tech 100", "para el tecnico 100" → tech=100
-- Es independiente del valor del servicio y de las partes; NUNCA se suma a valor_servicio.
-- Si no aparece → tech=0
-
-TIPO DE PAGO — solo 3 valores posibles: "CASH", "CC", "MIXTO":
-- Variantes de CASH: cash, efectivo
-- Variantes de CC: cc, credit, credit card, scanpay, card, zelle, paid to (nombre)
-- Si aparecen CASH y CC en el mismo mensaje → "MIXTO"
-- Si NO hay ninguna variante de pago en el mensaje → asumir "CASH" por defecto
-- SIEMPRE devolver uno de: "CASH", "CC", "MIXTO" — nunca null, nunca otro valor
-
-JOB TYPE — solo 2 valores posibles: "CAR KEY", "LOCKOUT":
-- Variantes de CAR KEY: car key, car key made, key made, key program, key programming
-- Variantes de LOCKOUT: lockout, car lockout, lock out, locked out, lock change, lock
-- Si no hay ninguna variante clara → null
-- SIEMPRE devolver uno de: "CAR KEY", "LOCKOUT", null — nunca otro valor
-
-VALOR DEL SERVICIO (valor_servicio):
-- Si hay cash + cc → el total ya aparece explícito en el mensaje, ese es valor_servicio
-- Si hay solo cash → valor_servicio = ese monto
-- Si hay solo cc   → valor_servicio = ese monto
-- Si aparece UN SOLO número en el mensaje sin contexto de pago explícito → ese ES el valor_servicio, asumir CASH
-- Si hay un número solo que por contexto parece el total → valor_servicio = ese número
-- NUNCA sumes partes al valor_servicio
-- Si no puedes determinarlo → null
-
-VALOR EN EFECTIVO (valor_efectivo):
-- El monto específico pagado en cash
-- Solo si aparece explícito → si no, null
-
-VALOR CON TARJETA (valor_tarjeta):
-- El monto específico pagado con tarjeta/cc/scanpay/zelle
-- Solo si aparece explícito → si no, null
-
-━━━ CAMPOS A EXTRAER ━━━
-
-{
-  "company":               "nombre de la empresa | null",
-  "job_name":              "código o número del ticket (ej: TLER-BCPS, AKBZH7, 5PVLF) | null",
-  "nombre":                "nombre del cliente | null",
-  "job_type":              "CAR KEY | LOCKOUT | null",
-  "date":                  "fecha como aparezca en el mensaje | null",
-  "time":                  "hora como aparezca en el mensaje | null",
-  "address":               "dirección completa | null",
-  "phone":                 "teléfono principal del cliente | null",
-  "valor_servicio":        número o 0,
-  "valor_efectivo":        número o 0,
-  "valor_tarjeta":         número o 0,
-  "tipo_pago":             "CASH | CC | MIXTO",
-  "parts_tecnico":         número o 0,
-  "parts_tecnico_nombre":  "nombre del técnico | 0",
-  "parts_gil":             número o 0,
-  "tech":                  número o 0
-}
-"""
- 
- 
 # ══════════════════════════════════════════════════════════════
 #  FUNCIÓN PRINCIPAL
 # ══════════════════════════════════════════════════════════════
  
 MODELO_LECTOR = "gpt-6-luna"
-VERSION_PROMPT = "2026-11-08"     # súbela cuando cambie SYSTEM_PROMPT: el historial del bot compara versiones
+VERSION_PROMPT = "2026-11-09"     # súbela cuando cambie el prompt de app/lector.py: el historial del bot compara versiones
 
 
 def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
@@ -554,12 +503,13 @@ def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
     {"modelo", "version_prompt", "tokens_entrada", "tokens_salida"}. Si falla, ({}, uso con lo que se sepa)."""
     uso = {"modelo": MODELO_LECTOR, "version_prompt": VERSION_PROMPT, "tokens_entrada": 0, "tokens_salida": 0}
     raw = ""
+    senal = lector.senales(text)          # lo exacto (ccf, no fee, %, apps) lo lee el código
     try:
         response = client.chat.completions.create(
             model=MODELO_LECTOR,
             max_completion_tokens=2000,   # incluye lo que razona: este modelo no acepta max_tokens
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": lector.PROMPT},
                 {"role": "user",   "content": text}
             ]
         )
@@ -569,7 +519,7 @@ def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
 
         raw = response.choices[0].message.content.strip()
         raw = re.sub(r"```json|```", "", raw).strip()
-        result = json.loads(raw)
+        result = lector.completa(json.loads(raw), senal)
 
         # Agregar lista de campos faltantes al resultado
         faltantes = [f for f in ["job_type", "tipo_pago"] if not result.get(f)]
@@ -614,7 +564,7 @@ def updateRegistroController(id: int, data, db: Session):
         db.commit()
         db.refresh(registro)
 
-        return {"message": "Registro actualizado correctamente", "registro": servicio_calculo.fila_respuesta(registro)}
+        return {"message": "Registro actualizado correctamente", "registro": _con_lectura(db, [registro])[0]}
 
     except Exception as e:
         db.rollback()
@@ -700,7 +650,7 @@ def validarJobDuplicado(job_name: str, db: Session):
 
 def bulkUpdateRegistros(registros: List[UpdateRegistroSchema], db: Session):
     try:
-        respuesta = []
+        tocados = []
         for item in registros:
             registro = db.query(registrosSchemma).filter(
                 registrosSchemma.id == item.id
@@ -714,7 +664,8 @@ def bulkUpdateRegistros(registros: List[UpdateRegistroSchema], db: Session):
                 setattr(registro, key, value)
             # Plan del bot, fase 2: el servidor manda en el total (y devuelve lo que quedó, para que el panel cuadre).
             servicio_calculo.recalcula(db, registro, total_panel)
-            respuesta.append(servicio_calculo.fila_respuesta(registro))
+            tocados.append(registro)
+        respuesta = _con_lectura(db, tocados)
         db.commit()
         return {"message": "Registros actualizados correctamente", "registros": respuesta}
     except Exception as e:

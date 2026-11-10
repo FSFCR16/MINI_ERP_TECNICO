@@ -133,6 +133,20 @@ export function actualizarPorcentajeCC(row) {
   return row
 }
 
+// Las reglas del mensaje que decide el servidor (BackEnd/app/lector.py), igual que las aplica el bot:
+// un % suelto es lo que se lleva el técnico; «ccf N» es la comisión en dólares (fija, como si se escribiera a mano);
+// «no fee», Zelle, Cash App y Venmo no cobran comisión.
+export function reglasDelMensaje(fila, result) {
+  let f = { ...fila }
+  if (result.porcentaje_tecnico != null) f.porcentaje_tecnico = result.porcentaje_tecnico
+  if (result.ccf != null) f.porcentaje_cc_base = null
+  else if (result.sin_fee) f.porcentaje_cc_base = 0
+  f = actualizarPorcentajeCC(f)
+  if (result.ccf != null) f.porcentaje_cc = result.ccf
+  if (result.mensaje_id) f.mensaje_id = result.mensaje_id   // la fila nace de ese mensaje: así se sabe si la IA leyó bien
+  return f
+}
+
 function cash(params) {
   const porcentajeT = params.porcentaje_tecnico
   const porcentajeGil = 100 - porcentajeT

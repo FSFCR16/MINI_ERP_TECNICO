@@ -23,22 +23,25 @@ from typing import Any, Callable
 # campo → (cómo se le dice al dueño, qué es, tipo)
 CAMPOS: dict[str, tuple[str, str, str]] = {
     "valor_servicio": ("valor", "lo que se cobró por el servicio, en dólares", "numero"),
-    "tipo_pago": ("pago", "cómo pagó el cliente: CASH, CC (tarjeta, scanpay, zelle) o MIXTO", "pago"),
+    "tipo_pago": ("pago", "cómo pagó el cliente: CASH, CC (tarjeta, scanpay, Zelle, Cash App, Venmo) o MIXTO", "pago"),
     "valor_efectivo": ("cash", "en un pago MIXTO, cuánto fue en efectivo", "numero"),
     "valor_tarjeta": ("tarjeta", "en un pago MIXTO, cuánto fue con tarjeta", "numero"),
     "partes_tecnico": ("partes técnico", "lo que el técnico pagó en piezas, en dólares", "numero"),
     "partes_gil": ("partes Gil", "lo que Gil (la empresa) pagó en piezas, en dólares; «cp» = company parts", "numero"),
     "tech": ("to tech", "dinero asignado directo al técnico («100 to tech»)", "numero"),
-    "porcentaje_cc": ("comisión tarjeta", "la comisión del pago con tarjeta, en DÓLARES (no en %)", "numero"),
+    "porcentaje_cc": ("comisión tarjeta", "la comisión del pago con tarjeta, en DÓLARES (no en %); «ccf 13» = 13", "numero"),
+    "porcentaje_tecnico": ("% técnico", "lo que se lleva el técnico en este trabajo, en % («40%»)", "porcentaje"),
     "is_cash": ("cc como cash", "si un pago con tarjeta se liquida como efectivo (sí/no)", "si_no"),
 }
 PARTES = "partes"          # «partes» sin decir de quién: lo resuelve `resuelve_partes`
 MAX_VALOR = 100_000
 
 _PAGO = {"cash": "CASH", "efectivo": "CASH", "cc": "CC", "card": "CC", "tarjeta": "CC", "credit": "CC",
-         "scanpay": "CC", "zelle": "CC", "mixto": "MIXTO", "mixed": "MIXTO"}
+         "scanpay": "CC", "zelle": "CC", "venmo": "CC", "cash app": "CC", "cashapp": "CC",
+         "mixto": "MIXTO", "mixed": "MIXTO"}
+_APPS = ("zelle", "venmo", "cash app", "cashapp")      # la plata la tiene Gil y no cobran comisión
 _N = r"\$?\s*(\d+(?:[.,]\d{1,2})?)\s*\$?"
-_PAGOS = r"(cash|efectivo|cc|card|tarjeta|credit|scanpay|zelle)"
+_PAGOS = r"(cash app|cashapp|cash|efectivo|cc|card|tarjeta|credit|scanpay|zelle|venmo)"
 _ES = r"\s*(?:es|son|era|eran|=|:|en|de|a|queda(?:n)?\s+en)?\s*"
 
 
@@ -51,10 +54,21 @@ def _n(s: str) -> float:
     return float(s.replace(",", "."))
 
 
+def _pago(palabra: str) -> dict[str, Any]:
+    """El pago dicho con una palabra. Zelle, Cash App y Venmo: CC sin comisión."""
+    return {"tipo_pago": _PAGO[palabra], **({"porcentaje_cc": 0.0} if palabra in _APPS else {})}
+
+
 # Cada regla: (patrón, qué devuelve). Van de lo más específico a lo más general; la primera que casa gana.
 _REGLAS: list[tuple[str, Callable[[re.Match], dict[str, Any]]]] = [
     (r"\b(?:desactiva|desactivar|quita|quitar|apaga|apagar|sin|no)\b.*\bcc como cash\b", lambda m: {"is_cash": False}),
     (r"\bcc como cash\b", lambda m: {"is_cash": True}),
+    (r"\b(?:no|sin|without|zero)\s*(?:cc\s*|card\s*|tarjeta\s*)?(?:fee|fees|ccf)\b|\bfee\s*free\b|\bnofee\b",
+     lambda m: {"porcentaje_cc": 0.0}),
+    (rf"\bccf{_ES}{_N}", lambda m: {"porcentaje_cc": _n(m[1])}),
+    (rf"(?<![\w.]){_N}\s*ccf\b(?:{_ES}(?:el\s+|la\s+)?(?:porcentaje|comision|fee)(?:\s+de\s+la\s+tarjeta|\s+(?:de\s+)?(?:la\s+)?(?:tarjeta|cc|card))?)?",
+     lambda m: {"porcentaje_cc": _n(m[1])}),
+    (r"(?<![\w.])(\d{1,3}(?:[.,]\d{1,2})?)\s*%", lambda m: {"porcentaje_tecnico": _n(m[1])}),
     (rf"\b(?:partes?|parts?)\s+(?:de\s+|del\s+)?(?:gil|company){_ES}{_N}", lambda m: {"partes_gil": _n(m[1])}),
     (rf"{_N}\s*(?:cp|(?:partes?|parts?)\s+(?:de\s+)?(?:gil|company)|company\s+parts?)\b", lambda m: {"partes_gil": _n(m[1])}),
     (rf"\bcp{_ES}{_N}", lambda m: {"partes_gil": _n(m[1])}),
@@ -64,14 +78,14 @@ _REGLAS: list[tuple[str, Callable[[re.Match], dict[str, Any]]]] = [
     (rf"\b(?:to|for)\s+tech(?:nician)?{_ES}{_N}", lambda m: {"tech": _n(m[1])}),
     (rf"{_N}\s*(?:to|for)\s+tech(?:nician)?\b", lambda m: {"tech": _n(m[1])}),
     (rf"\b(?:partes?|parts?){_ES}{_N}", lambda m: {PARTES: _n(m[1])}),
-    (rf"{_N}\s*{_PAGOS}\b", lambda m: {"valor_servicio": _n(m[1]), "tipo_pago": _PAGO[m[2]]}),
+    (rf"{_N}\s*{_PAGOS}\b", lambda m: {"valor_servicio": _n(m[1]), **_pago(m[2])}),
     (rf"\b(?:valor|son|fue|fueron|cobro|total|precio){_ES}{_N}", lambda m: {"valor_servicio": _n(m[1])}),
     # el pago solo, sin número: la frase ENTERA tiene que ser eso («fue cash», «pago con tarjeta»)
-    (rf"^(?:el\s+)?(?:pago|pagaron|pagado|es|fue|era)?\s*(?:en\s+|con\s+)?{_PAGOS}$", lambda m: {"tipo_pago": _PAGO[m[1]]}),
+    (rf"^(?:el\s+)?(?:pago|pagaron|pagado|es|fue|era)?\s*(?:en\s+|con\s+|por\s+)?{_PAGOS}$", lambda m: _pago(m[1])),
     (r"^(?:el\s+)?(?:pago\s+|es\s+|fue\s+)?(?:es\s+)?(mixto|mixed)$", lambda m: {"tipo_pago": "MIXTO"}),
 ]
 # Palabras que, si quedan en una parte que ninguna regla entendió, significan que había algo que corregir.
-_CLAVE = re.compile(r"\d|cash|efectivo|\bcc\b|tarjeta|card|partes?|parts?|\bgil\b|tech|valor|comision|porcentaje|fee|mixto|\bcp\b")
+_CLAVE = re.compile(r"\d|cash|efectivo|\bcc\b|ccf|tarjeta|card|partes?|parts?|\bgil\b|tech|valor|comision|porcentaje|fee|mixto|\bcp\b|zelle|venmo|%")
 
 
 def por_codigo(texto: str) -> dict[str, Any] | None:
@@ -104,8 +118,9 @@ Campos permitidos (no hay otros):
 Reglas:
 - Solo lo que la corrección pide. Lo que no menciona, no lo pongas.
 - Números en dólares, sin el signo. Sí/no → true/false. Pago → "CASH", "CC" o "MIXTO".
-- «ccf» solo, sin decir qué es, no está claro: no lo traduzcas. Si la misma frase dice qué es («12 ccf son la
-  comisión / el porcentaje de la tarjeta»), usa lo que dice la frase.
+- «ccf N» es la comisión de la tarjeta en dólares → porcentaje_cc = N. «no fee» → porcentaje_cc = 0.
+- Un % suelto («40%») es lo que se lleva el técnico → porcentaje_tecnico.
+- Zelle, Cash App o Venmo → tipo_pago "CC" y porcentaje_cc = 0 (la plata la tiene Gil y no cobran comisión).
 - Si algo no lo entiendes, déjalo fuera. Nunca inventes."""
 
 
@@ -148,6 +163,13 @@ def valida(cambios: list[dict[str, Any]] | dict[str, Any]) -> dict[str, Any]:
             except (TypeError, ValueError):
                 continue
             if 0 <= v <= MAX_VALOR:
+                salida[campo] = v
+        elif tipo == "porcentaje":
+            try:
+                v = float(str(valor).replace(",", ".").replace("%", "").strip())
+            except (TypeError, ValueError):
+                continue
+            if 0 <= v <= 100:
                 salida[campo] = v
         elif tipo == "pago":
             v = _PAGO.get(norm(str(valor)), str(valor).upper())

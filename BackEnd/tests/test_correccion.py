@@ -57,8 +57,8 @@ def test_el_codigo_entiende(texto, esperado):
 
 
 def test_lo_que_el_codigo_no_entiende_va_entero_a_la_ia():
-    # «12 ccf son el porcentaje…»: la primera parte no la entiende el código → todo a la IA (nada a medias)
-    assert correccion.por_codigo("12 ccf son el porcentaje de la tarjeta y las partes de Gil es 0") is None
+    # una parte que el código no entiende → todo a la IA (nada a medias). «ccf» ya lo entiende: tests/test_lector.py
+    assert correccion.por_codigo("la comision quedo en doce y las partes de Gil es 0") is None
     assert correccion.por_codigo("gracias") is None
 
 
@@ -101,7 +101,7 @@ def test_la_ia_solo_traduce_a_campos_de_la_lista():
         return [{"campo": "porcentaje_cc", "valor": "12"}, {"campo": "partes_gil", "valor": 0},
                 {"campo": "total", "valor": 999}, {"campo": "inventado", "valor": 1},
                 {"campo": "tech", "valor": -5}], {"tokens_entrada": 500, "tokens_salida": 50}
-    r = _edita(rid, "12 ccf son el porcentaje de la tarjeta y las partes de Gil es 0", ia)
+    r = _edita(rid, "la comision quedo en doce y gil no puso partes", ia)
     reg = _reg(rid)
     assert (reg.porcentaje_cc, reg.partes_gil, reg.tech) == (12, 0, 0)               # lo raro se descartó
     assert reg.total != 999 and r["estado"] == "creado"

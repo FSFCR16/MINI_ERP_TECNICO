@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import SessionLocal, get_db
-from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana,parse_ticket, historialTodos, semanasRecientesController
+from app.controllers import bulkUpdateRegistros,validarJobDuplicado,eliminarTrabajo, obtenerTrabajos,crearTrabajo,actualizarTrabajo,eliminarTrabajo,obtener_nombres,updateRegistroController, validarTecnicoSemana, traerInformacionTecnico, envioRegistrosDB, obtenerHistorialTenico, obtenerRegistrosSemana, eliminarRegistros, exporToExcelController,obtenerSemanasDisponibles,obtenerTecnicosPorSemana, eliminarSemana, eliminarTecnicoSemana, lee_del_panel, historialTodos, semanasRecientesController
 from app.schemmas import TrabajoCreateSchema,TrabajoSchema,UpdateRegistroSchema, TecnicoRequest, SemanaTecnicoSchemaFront, ResumenSemanaSchema,SemanaRequest,infoSemana,EnvioRegistrosBody, SemanaBody
 from typing import List
 
@@ -33,9 +33,8 @@ async def validarInformacion(body: SemanaBody, db: Session = Depends(get_db)):
     return validarTecnicoSemana(db, body.semana)
 
 @router.post("/parsear-mensaje")
-async def parsearMensaje(body: dict):
-    resultado = parse_ticket(body["mensaje"])
-    return resultado
+async def parsearMensaje(body: dict, db: Session = Depends(get_db)):
+    return lee_del_panel(db, body["mensaje"])
 
 # @router.post("/registrosDataBase")
 # async def envioRegistrosRoute(registros: List[SemanaTecnicoSchemaFront], db: Session = Depends(get_db)):

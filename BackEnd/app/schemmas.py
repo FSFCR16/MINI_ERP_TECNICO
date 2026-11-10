@@ -65,6 +65,7 @@ class SemanaTecnicoSchemaFront(BaseModel):
     is_cash: Optional[bool] = None
     aplica_dolar_empresa: Optional[str] = None
     dolar_adicional_empresa: Optional[float] = None
+    mensaje_id: Optional[int] = None          # el mensaje pegado del que salió la fila (para saber si la IA leyó bien)
 
     @field_validator('id', mode='before')
     @classmethod

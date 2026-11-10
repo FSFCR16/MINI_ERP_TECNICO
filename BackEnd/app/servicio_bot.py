@@ -23,7 +23,7 @@ from typing import Any, Callable
 from sqlalchemy import func
 from sqlalchemy.orm import Session, object_session
 
-from app import calculo, correccion, servicio_alertas, servicio_calculo
+from app import calculo, correccion, lectura_ia, lector, servicio_alertas, servicio_calculo
 from app.controllers import exporToExcelController, parse_ticket_con_uso, validarTecnicoSemana
 from app.models import SemanaTecnico, Trabajo, registrosSchemma
 from app.models_bot import MensajeBot
@@ -241,13 +241,15 @@ def fila_desde_ia(ia: dict[str, Any], c: Trabajo) -> dict[str, Any]:
     n = lambda v: float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0  # noqa: E731
     tipo = str(ia.get("tipo_pago") or "CASH").upper()
     empresa = float(c.porcentaje_adicional_empresa or 0)
+    pct = n(ia.get("porcentaje_tecnico")) if ia.get("porcentaje_tecnico") is not None else None
     fila = {
         "tecnico_id": c.id, "nombre": c.nombre, "job": c.job,
         "job_name": str(ia["job_name"]).upper() if ia.get("job_name") else "",
         "valor_servicio": n(ia.get("valor_servicio")), "valor_efectivo": n(ia.get("valor_efectivo")),
         "valor_tarjeta": n(ia.get("valor_tarjeta")), "partes_tecnico": n(ia.get("parts_tecnico")),
         "partes_gil": n(ia.get("parts_gil")), "tech": n(ia.get("tech")), "tipo_pago": tipo,
-        "porcentaje_tecnico": float(c.porcentaje_tecnico or 0), "minimo": float(c.minimo or 0),
+        "porcentaje_tecnico": pct if pct is not None else float(c.porcentaje_tecnico or 0),  # el % suelto manda
+        "minimo": float(c.minimo or 0),
         "adicional_dolar": float(c.adicional_dolar or 0), "is_cash": False,
         "aplica_dolar_empresa": "SI" if empresa > 0 else "NO", "dolar_adicional_empresa": empresa,
         "porcentaje_cc": 0.0, "subtotal": 0.0, "total": 0.0,
@@ -255,7 +257,7 @@ def fila_desde_ia(ia: dict[str, Any], c: Trabajo) -> dict[str, Any]:
     if tipo != "MIXTO":                       # handleBtnAgregar: fuera de MIXTO no hay reparto
         fila["valor_efectivo"] = fila["valor_tarjeta"] = 0.0
     con_cc = calculo.porcentaje_cc({**fila, "porcentaje_cc_base": c.porcentaje_cc})
-    fila["porcentaje_cc"] = float(con_cc.get("porcentaje_cc") or 0)
+    fila["porcentaje_cc"] = lector.comision(ia, float(con_cc.get("porcentaje_cc") or 0))   # «ccf N» / no fee / apps
     return fila
 
 
@@ -326,7 +328,7 @@ def _respuesta(m: MensajeBot, reg: registrosSchemma | None = None, **extra) -> d
     elif m.estado in MOTIVOS:
         # Lo que sí se leyó, para que el formulario (fase 6) venga ya lleno y solo pida lo que falta.
         ia = json.loads(m.salida_ia or "{}") or {}
-        r["leido"] = {k: ia.get(kia) for k, kia in CAMPOS_IA.items()}
+        r["leido"] = {k: ia.get(kia) for k, (kia, _) in lectura_ia.CAMPOS_IA.items()}
         r["texto"] = (m.texto or "")[:300]
         db = object_session(m)
         if m.estado == "repetido" and db is not None:
@@ -525,7 +527,7 @@ CAMPOS_FILA = ["tecnico_id", "nombre", "job", "job_name", "valor_servicio", "val
                "adicional_dolar", "aplica_dolar_empresa", "dolar_adicional_empresa", "is_cash", "alertas", "total"]
 CAMPOS_VISIBLES = {"valor_servicio": "valor", "tipo_pago": "pago", "valor_efectivo": "cash", "valor_tarjeta": "tarjeta",
                    "partes_tecnico": "partes técnico", "partes_gil": "partes Gil", "tech": "to tech",
-                   "porcentaje_cc": "comisión tarjeta", "is_cash": "cc como cash", "job": "job",
+                   "porcentaje_cc": "comisión tarjeta", "porcentaje_tecnico": "% técnico", "is_cash": "cc como cash", "job": "job",
                    "job_name": "número", "nombre": "técnico", "total": "total"}
 
 
@@ -721,8 +723,10 @@ def pendientes(db: Session, semana_label: str) -> dict[str, Any]:
     filas = [] if not sem else (db.query(registrosSchemma)
                                 .filter(registrosSchemma.semana_id == sem.id, registrosSchemma.validacion == POR_VALIDAR)
                                 .order_by(registrosSchemma.id).all())
+    lecturas = lectura_ia.por_trabajo(db, filas)            # el puntico: lo que la IA leyó distinto (ya corregido)
     return {"por_validar": [{**servicio_calculo.fila_respuesta(r), "nombre": r.nombre, "valor_servicio": r.valor_servicio,
-                             "tipo_pago": r.tipo_pago, "alertas": json.loads(r.alertas) if r.alertas else []}
+                             "tipo_pago": r.tipo_pago, "alertas": json.loads(r.alertas) if r.alertas else [],
+                             "lectura": lecturas.get(r.id)}
                             for r in filas],
             "bloqueados": bloqueados(db, semana_label)}
 
@@ -816,11 +820,6 @@ def cierra_semana(db: Session, semana_label: str) -> dict[str, Any]:
 
 
 # ─────────────────────────────── validar (el panel) ───────────────────────────────
-CAMPOS_IA = {"job_name": "job_name", "valor_servicio": "valor_servicio", "valor_efectivo": "valor_efectivo",
-             "valor_tarjeta": "valor_tarjeta", "partes_tecnico": "parts_tecnico", "partes_gil": "parts_gil",
-             "tech": "tech", "tipo_pago": "tipo_pago", "job": "job_type"}
-
-
 def valida(db: Session, ids: list[int]) -> int:
     """Aprobar en el panel. Al validar se guarda en el historial lo que quedó y qué campos corrigió una persona
     respecto a lo que leyó la IA (§9: acierto por campo)."""
@@ -830,21 +829,12 @@ def valida(db: Session, ids: list[int]) -> int:
         m = db.get(MensajeBot, r.mensaje_id) if r.mensaje_id else None
         if m:
             ia = json.loads(m.salida_ia or "{}") or {}
-            final = {k: getattr(r, k) for k in CAMPOS_IA} | {"total": r.total, "tecnico": r.nombre}
-            corregidos = [k for k, kia in CAMPOS_IA.items() if not _mismo(final[k], ia.get(kia), k)]
+            final = {k: getattr(r, k) for k in lectura_ia.CAMPOS_IA} | {"total": r.total, "tecnico": r.nombre}
+            corregidos = [x["clave"] for x in lectura_ia.fallos(r, ia)]
             m.datos_finales = json.dumps(final, ensure_ascii=False, default=str)
             m.campos_corregidos = json.dumps(corregidos)
     db.commit()
     return len(regs)
-
-
-def _mismo(final: Any, leido: Any, campo: str) -> bool:
-    if campo in ("job_name", "tipo_pago", "job"):
-        return _k(str(final or "")) == _k(str(leido or "")) or (campo == "job" and _k(str(final)) == "TODO")
-    try:
-        return float(final or 0) == float(leido or 0)
-    except (TypeError, ValueError):
-        return False
 
 
 def nuevos(db: Session, nombre: str, semana_label: str, desde_id: int = 0) -> dict[str, int]:
@@ -918,8 +908,10 @@ def metricas(db: Session, n: int = 6) -> dict[str, Any]:
                          "mas_hace": max(t["jobs"], key=t["jobs"].get)})
     semanas = [s for s in semanas_con_totales(db, n)]
     semanas.reverse()   # de la más vieja a la más nueva, para la línea
+    ultima = [r for r in regs if sems and r.semana_id == sems[0].id]
     return {"semanas": semanas, "tecnicos": sorted(tecnicos, key=lambda x: -x["ventas"]), "pagos": pagos,
-            "comision_tarjeta": calculo.formatear_numero(comision)}
+            "comision_tarjeta": calculo.formatear_numero(comision),
+            "ia": {"periodo": lectura_ia.resumen(db, regs), "semana": lectura_ia.resumen(db, ultima)}}
 
 
 def semana_por_tecnico(db: Session, semana_label: str) -> dict[str, Any]:

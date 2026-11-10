@@ -5,7 +5,7 @@ import { BuscadorRegistros } from '../../components/BuscadorRegistros.jsx'
 // ── FIX 1: importar el selector estable en lugar del store completo
 import { useSeleccionStore, useEsSeleccionada, useLimpiarClipboard } from '../../../../../../app/stores/useClipboardStore.js'
 
-import { marcaBot } from "@/Components/BandejaBot"
+import { marcaBot, textoLectura } from "@/Components/BandejaBot"
 
 export const FilaRegistro = memo(function FilaRegistro({
     row,
@@ -36,6 +36,7 @@ export const FilaRegistro = memo(function FilaRegistro({
     const [columnaEditando, setColumnaEditando] = useState(null)
     const [celdaActivaLocal, setCeldaActivaLocal] = useState(null)
     const bot = marcaBot(row)   // plan del bot: llegó por WhatsApp y espera validación (con o sin alertas)
+    const leidoMal = textoLectura(row)   // el puntico: la IA leyó distinto a como quedó
 
     return (
         <tr
@@ -145,6 +146,10 @@ export const FilaRegistro = memo(function FilaRegistro({
                                 }`}
                             >
                                 <div className="flex items-center gap-1">
+                                    {col.key === "job_name" && leidoMal && (
+                                        <span title={leidoMal} aria-label={leidoMal}
+                                            className="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-violet-400 cursor-help" />
+                                    )}
                                     <span className={`inline-block ${celdaActivaLocal === indexCol ? "animate-scrollText" : "truncate"}`}>
                                         {Number.isFinite(value) ? formatearNumero(value) : value}
                                     </span>

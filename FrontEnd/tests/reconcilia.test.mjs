@@ -60,3 +60,13 @@ test("total 0 del servidor sí se aplica (no se confunde con vacío)", () => {
     assert.equal(r.lista[0].total, 0)
     assert.equal(r.ajustes.length, 1)
 })
+
+test("la lectura de la IA llega a la fila sin aviso de ajuste (el puntico)", () => {
+    const lectura = { texto: "J1 300", fallos: [{ clave: "tipo_pago", campo: "pago", leyo: "CASH", quedo: "CC" }] }
+    const r = aplicaServidor([{ id_registro: 1, total: 10 }], [{ id: 1, total: 10, lectura }])
+    assert.deepEqual(r.lista[0].lectura, lectura)
+    assert.equal(r.ajustes.length, 0)
+    assert.equal(r.lista[0]._ajustado, undefined)
+    const sin = aplicaServidor(r.lista, [{ id: 1, total: 10, lectura: null }])
+    assert.equal(sin.lista[0].lectura, null)
+})

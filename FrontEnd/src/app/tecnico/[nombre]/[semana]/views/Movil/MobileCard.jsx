@@ -4,6 +4,7 @@ import { MobileCardEdit } from "./MobileCardEdit";
 import { MobileCardDetail } from "./MobileCardDetail";
 import { MobileCardTotales } from "./MobileCardTotales";
 import { useMobileClipboard } from "../../hooks/useMobileClipboard";
+import { textoLectura } from "@/Components/BandejaBot";
 
 export const MobileCard = memo(function MobileCard({
   row,
@@ -24,6 +25,7 @@ export const MobileCard = memo(function MobileCard({
 }) {
   const rowId = row.id_registro ?? row.id;
   const totalNegativo = Number(row.total) < 0;
+  const leidoMal = textoLectura(row);   // el puntico: la IA leyó distinto a como quedó
 
   const { enSeleccion, handleCopiarBtn } = useMobileClipboard({
     rowId,
@@ -65,7 +67,8 @@ export const MobileCard = memo(function MobileCard({
           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
             {row.nombre ?? row.tipo_pago ?? "—"}
           </span>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
+            {leidoMal && <span title={leidoMal} aria-label={leidoMal} className="shrink-0 inline-block w-1.5 h-1.5 rounded-full bg-violet-400" />}
             Servicio: ${row.valor_servicio ?? "—"}
           </span>
         </div>

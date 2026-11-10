@@ -24,6 +24,16 @@ export function marcaBot(r) {
         : { clase: "shadow-[inset_3px_0_0_#38bdf8]", titulo: "Llegó por WhatsApp · por validar" }
 }
 
+// ¿La IA leyó mal este trabajo? El servidor compara lo que leyó con cómo quedó (`lectura`); nadie marca nada.
+// Devuelve el texto del puntico, o null si la IA lo leyó bien (o la fila no nació de un mensaje).
+export function textoLectura(r) {
+    const f = r?.lectura?.fallos
+    if (!f?.length) return null
+    const v = (x) => (x === null || x === undefined || x === "" ? "nada" : x)
+    const cambios = f.map((x) => `• ${x.campo}: la IA leyó ${v(x.leyo)} → quedó ${v(x.quedo)}`).join("\n")
+    return `La IA leyó distinto:\n${cambios}\n\nMensaje:\n${r.lectura.texto ?? ""}`
+}
+
 export function BandejaBot({ nombre, semana, registros, hayPendientes, recargar, onAviso }) {
     const [nuevos, setNuevos] = useState(0)
     const [abierta, setAbierta] = useState(false)

@@ -19,7 +19,7 @@ import {
   procesarData,
   formatearNumero,
   mapearErroresZod,
-  actualizarPorcentajeCC,
+  reglasDelMensaje,
 } from "../../../../../Utils/api.js";
 import { tecnicoSchema } from "@/app/schemas/tecnicoSchema.js";
 import { columnasBase } from "../tableRow/columnasBase.jsx";
@@ -294,10 +294,8 @@ export function useRegistroActions({
         if (result.tech) newRow.tech = result.tech;
         if (result.tipo_pago) newRow.tipo_pago = result.tipo_pago.toUpperCase();
 
-        if (data.length > 1 && found) {
-          return actualizarPorcentajeCC(procesarDatosTecnico([found], newRow, true)[0]);
-        }
-        return actualizarPorcentajeCC(procesarDatosTecnico(data, newRow, true)[0]);
+        const fila = procesarDatosTecnico(data.length > 1 && found ? [found] : data, newRow, true)[0];
+        return reglasDelMensaje(fila, result);
       });
     } catch (err) {
       console.error(err);
