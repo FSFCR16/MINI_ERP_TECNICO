@@ -14,6 +14,7 @@ const rowVacio = {
     adicional_dolar: 1,
     cargo_sabados: 0,
     porcentaje_adicional_empresa: 0,
+    cc_como_cash: false,
 }
 
 export function useTrabajosActions({ openError, openModal, closeModal, pedirConfirmacion }) {

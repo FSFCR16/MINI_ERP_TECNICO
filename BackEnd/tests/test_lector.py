@@ -152,3 +152,18 @@ def test_un_numero_de_job_corto_se_busca_exacto():
         assert servicio_bot.buscar(db, "G") == []
     finally:
         db.close()
+
+
+def test_el_contrato_con_cc_como_cash_lo_trae_encendido():
+    from app.db import SessionLocal
+    from app.models import Trabajo
+    db = SessionLocal()
+    if not db.query(Trabajo).filter(Trabajo.nombre == "ZETA").first():
+        db.add(Trabajo(nombre="ZETA", job="TODO", porcentaje_tecnico=50, porcentaje_gil=50, adicional_dolar=0, minimo=40,
+                       porcentaje_cc=3, cargo_sabados=0, porcentaje_adicional_empresa=0, cc_como_cash=True))
+        db.commit()
+    db.close()
+    t = _tanda([{"texto": "lec-q1", "wamid": "w-lec-q1"}], {"lec-q1": {**CC300, "job_name": "LEC-Q1"}}, tecnico_tanda="ZETA")
+    assert "registro" in t["resultados"][0], t["resultados"][0]
+    assert _reg(t["resultados"][0]["registro"]["id"]).is_cash is True
+    assert _crea("lec-q2", {**CC300, "job_name": "LEC-Q2"}).is_cash is False          # AFIK no lo tiene

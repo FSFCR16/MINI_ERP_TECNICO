@@ -66,4 +66,10 @@ export const columnasTrabajos = [
         inputType: "number",
         editable: true
     },
+    {
+        key: "cc_como_cash",
+        label: "CC COMO CASH",
+        component: "checkbox",
+        editable: true
+    },
 ]

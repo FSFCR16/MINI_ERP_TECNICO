@@ -250,7 +250,7 @@ def fila_desde_ia(ia: dict[str, Any], c: Trabajo) -> dict[str, Any]:
         "partes_gil": n(ia.get("parts_gil")), "tech": n(ia.get("tech")), "tipo_pago": tipo,
         "porcentaje_tecnico": pct if pct is not None else float(c.porcentaje_tecnico or 0),  # el % suelto manda
         "minimo": float(c.minimo or 0),
-        "adicional_dolar": float(c.adicional_dolar or 0), "is_cash": False,
+        "adicional_dolar": float(c.adicional_dolar or 0), "is_cash": bool(c.cc_como_cash),   # del contrato
         "aplica_dolar_empresa": "SI" if empresa > 0 else "NO", "dolar_adicional_empresa": empresa,
         "porcentaje_cc": 0.0, "subtotal": 0.0, "total": 0.0,
     }

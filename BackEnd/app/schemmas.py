@@ -19,6 +19,7 @@ class TrabajoSchema(BaseModel):
     porcentaje_cc: float | None = None
     cargo_sabados: float | None = None
     porcentaje_adicional_empresa: float | None = None
+    cc_como_cash: bool | None = None
 
     class Config:
         orm_mode = True
@@ -131,4 +132,5 @@ class TrabajoCreateSchema(BaseModel):
     porcentaje_cc: float
     cargo_sabados: float
     porcentaje_adicional_empresa: float
+    cc_como_cash: bool = False
 

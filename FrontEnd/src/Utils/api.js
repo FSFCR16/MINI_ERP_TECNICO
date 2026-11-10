@@ -21,7 +21,7 @@ export function procesarDatosTecnico(datos, datosPrevios = null, mensaje = false
       tech: 0,
       subtotal: 0,
       total: 0,
-      is_cash: false,
+      is_cash: !!dato.cc_como_cash,   // del contrato: «cc como cash» siempre encendido para ese técnico
       adicional_dolar: dato.adicional_dolar,
       id_registro: datosPrevios?.id ?? null,
       aplica_dolar_empresa: dato.porcentaje_adicional_empresa > 0 ? "SI" : "NO",

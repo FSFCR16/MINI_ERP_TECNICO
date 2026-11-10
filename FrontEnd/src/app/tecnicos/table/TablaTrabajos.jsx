@@ -133,6 +133,13 @@ export function TablaTrabajos({ state, handlers, nav }) {
                                                         onChange={() => toggleSeleccion(row)}
                                                         className="w-3.5 h-3.5 cursor-pointer"
                                                     />
+                                                ) : col.component === "checkbox" ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!value}
+                                                        onChange={(e) => actualizarCeldaTrabajo(indexReal, col.key, e.target.checked)}
+                                                        className="w-4 h-4 cursor-pointer accent-indigo-500"
+                                                    />
                                                 ) : celdaEditando === cellKey ? (
                                                     <input
                                                         autoFocus

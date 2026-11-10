@@ -70,4 +70,5 @@ export const trabajoSchema = z.object({
     adicional_dolar: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
     cargo_sabados: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
     porcentaje_adicional_empresa: z.preprocess(v => v === "" ? undefined : Number(v), z.number({ required_error: "Requerido", invalid_type_error: "Requerido" })),
+    cc_como_cash: z.boolean().optional(),
 })

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, TIMESTAMP ,Integer, String, Float, Date, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, TIMESTAMP ,Integer, String, Float, Date, ForeignKey, Text, UniqueConstraint, false
 from sqlalchemy.orm import relationship
 from app.db import Base
 from sqlalchemy.sql import func
@@ -17,6 +17,8 @@ class Trabajo(Base):
     porcentaje_cc = Column(Float, nullable=True)
     cargo_sabados = Column(Float, nullable=True)
     porcentaje_adicional_empresa = Column(Float, nullable=True)
+    # 2026-11-09: los trabajos de este contrato nacen con «cc como cash» encendido (se puede apagar en uno)
+    cc_como_cash = Column(Boolean, nullable=False, default=False, server_default=false())
 
     registros= relationship("registrosSchemma", back_populates="tecnico")
 

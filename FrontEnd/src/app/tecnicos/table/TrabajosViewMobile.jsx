@@ -249,7 +249,7 @@ export function TrabajosViewMobile({ state, handlers, nav }) {
                                                         </div>
                                                     ) : (
                                                         <span className="text-xs font-semibold text-slate-500 px-1">
-                                                            {row[col.key] ?? "—"}
+                                                            {typeof row[col.key] === "boolean" ? (row[col.key] ? "Sí" : "No") : (row[col.key] ?? "—")}
                                                         </span>
                                                     )}
                                                 </div>
