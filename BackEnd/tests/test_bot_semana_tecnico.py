@@ -60,3 +60,16 @@ def test_un_nombre_que_no_esta_ofrece_parecidos_y_no_adivina():
     r = reconoce_tecnico("Nik", NOMBRES)     # 3 letras: no se acepta solo
     assert r["nombre"] is None and r["solo_nombre"] and "NICK" in r["candidatos"]
     assert reconoce_tecnico("Pedro", NOMBRES) == {"nombre": None, "candidatos": [], "solo_nombre": True}
+
+
+@pytest.mark.parametrize("texto", ["16/11", "16 nov", "20 de diciembre"])
+def test_fecha_sin_anio_a_pocos_dias_pregunta_no_adivina(texto):
+    """2026-11-10: «16/11» el 10 de noviembre se iba a 2025 sin avisar. Cerca: se pregunta (esta semana o la de hace un año)."""
+    s = resuelve_semana(texto, date(2026, 11, 10))
+    assert s["duda"] == "futura"
+    assert [o["label"] for o in s["opciones"]][0] == "2026_11_semana_46"
+    assert s["opciones"][1]["fecha_inicio"].startswith("2025-")
+
+
+def test_fecha_sin_anio_lejos_sigue_siendo_la_del_anio_pasado():
+    assert resuelve_semana("20/12", date(2026, 1, 14))["label"] == "2025_12_semana_51"

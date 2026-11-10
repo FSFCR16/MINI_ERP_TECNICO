@@ -150,7 +150,11 @@ def opciones_semana(hoy: date | None = None, n: int = 8) -> list[dict[str, Any]]
 
 def resuelve_semana(texto: str, hoy: date | None = None) -> dict[str, Any] | None:
     """«semana 44», «44», una fecha («3/11», «3/11/2026», «2026-11-03», «3 nov», «3 de noviembre») o la etiqueta
-    «2026_11_semana_45». Nunca una semana futura. None si no se entiende."""
+    «2026_11_semana_45». Nunca una semana futura. None si no se entiende.
+
+    Fecha SIN año que todavía no llega: si está lejos (más de DUDA_DIAS) es la del año pasado («20/12» en enero); si está
+    cerca, casi seguro el año es este y se equivocó de semana: no se adivina, se devuelve {"duda": ...} con la semana
+    actual y la del año pasado para que escoja (2026-11-10: «16/11» el 10 de noviembre se iba a 2025 sin avisar)."""
     hoy = hoy or date.today()
     lunes_hoy = hoy - timedelta(days=hoy.weekday())
     t = (texto or "").strip().lower()
@@ -185,6 +189,8 @@ def resuelve_semana(texto: str, hoy: date | None = None) -> dict[str, Any] | Non
             anio = anio + 2000 if anio < 100 else anio
             dia = _fecha(anio, int(m.group(2)), int(m.group(1)))
             if dia and not m.group(3) and dia > hoy:
+                if (dia - hoy).days <= DUDA_DIAS:
+                    return _duda_futura(dia, lunes_hoy)
                 dia = _fecha(anio - 1, int(m.group(2)), int(m.group(1)))
     if dia is None:
         m = re.fullmatch(r"(\d{1,2})\s*(?:de\s+)?([a-záéíóú]+)\.?(?:\s+(?:de\s+)?(\d{4}))?", t)
@@ -195,6 +201,8 @@ def resuelve_semana(texto: str, hoy: date | None = None) -> dict[str, Any] | Non
                 anio = int(m.group(3)) if m.group(3) else hoy.year
                 dia = _fecha(anio, mes, int(m.group(1)))
                 if dia and not m.group(3) and dia > hoy:
+                    if (dia - hoy).days <= DUDA_DIAS:
+                        return _duda_futura(dia, lunes_hoy)
                     dia = _fecha(anio - 1, mes, int(m.group(1)))
     if dia is None:
         return None
@@ -202,6 +210,17 @@ def resuelve_semana(texto: str, hoy: date | None = None) -> dict[str, Any] | Non
     if lunes > lunes_hoy:
         return None
     return {**_semana(lunes), "actual": lunes == lunes_hoy}
+
+
+DUDA_DIAS = 60
+
+
+def _duda_futura(dia: date, lunes_hoy: date) -> dict[str, Any]:
+    """Una fecha sin año a pocos días: no se adivina. Las dos semanas que pudo querer: la actual y la del año pasado."""
+    pasado = _fecha(dia.year - 1, dia.month, dia.day) or (dia - timedelta(days=365))
+    lunes_pasado = pasado - timedelta(days=pasado.weekday())
+    return {"duda": "futura", "fecha": f"{dia.day}/{dia.month}",
+            "opciones": [{**_semana(lunes_hoy), "actual": True}, {**_semana(lunes_pasado), "actual": False}]}
 
 
 def _fecha(a: int, m: int, d: int) -> date | None:
