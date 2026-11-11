@@ -56,9 +56,11 @@ def test_token_alterado_o_vencido_no_entra(cliente, sesion):
 
 
 def test_la_llave_del_chat(cliente):
-    assert cliente.get("/api/version", headers={"X-Llave-Chat": "llave-del-chat-de-pruebas"}).status_code == 200
+    # Seguridad E2 (2026-11-11): la llave abre /api/bot/* y el pase; el resto del ERP (panel) pide sesión de persona.
+    assert cliente.get("/api/bot/tecnicos", headers={"X-Llave-Chat": "llave-del-chat-de-pruebas"}).status_code == 200
+    assert cliente.get("/api/version", headers={"X-Llave-Chat": "llave-del-chat-de-pruebas"}).status_code == 403
     assert cliente.get("/api/version", headers={"X-Llave-Chat": "otra"}).status_code == 401
-    assert cliente.get("/auth/yo", headers={"X-Llave-Chat": "llave-del-chat-de-pruebas"}).json()["tipo"] == "chat"
+    assert cliente.get("/auth/yo", headers={"X-Llave-Chat": "llave-del-chat-de-pruebas"}).status_code == 403
 
 
 def test_cors_solo_para_el_panel(cliente):
@@ -145,3 +147,92 @@ def test_si_el_correo_falla_no_entra(cliente, usuario, monkeypatch):
 def test_otro_token_no_sirve_de_reto(cliente, usuario):
     falso = seguridad.firma({"t": "sesion", "u": 1, "j": "x", "h": "y"}, 60)
     assert cliente.post("/auth/codigo", json={"reto": falso, "codigo": "123456"}).status_code == 401
+
+
+# ── Seguridad, ronda de arreglos 2026-11-11 (E1, E2, E5, E6, E7, E8) ──
+def test_e2_la_llave_del_chat_no_abre_el_panel(cliente):
+    """Todas las rutas que NO son del bot rechazan la llave sola (403); las del bot y el pase la aceptan."""
+    for metodo, ruta in _rutas(aplicacion):
+        if seguridad.ruta_del_chat(ruta):
+            continue
+        r = cliente.request(metodo, ruta.replace("{", "").replace("}", ""), headers=CHAT, json={})
+        assert r.status_code == 403, (metodo, ruta, r.status_code)
+    assert seguridad.ruta_del_chat("/api/bot/trabajos/5/cambiar") and seguridad.ruta_del_chat("/auth/pase-chat")
+    assert not seguridad.ruta_del_chat("/api/botx") and not seguridad.ruta_del_chat("/auth/yo")
+
+
+def test_e2_la_llave_y_una_sesion_juntas_siguen_entrando(cliente, sesion):
+    assert cliente.get("/api/version", headers={**CHAT, **sesion}).status_code == 200
+
+
+def test_e1_un_usuario_desactivado_pierde_la_sesion(cliente):
+    from app.db import SessionLocal
+    from app.models_bot import UsuarioERP
+    db = SessionLocal()
+    u = UsuarioERP(email="e1@erp.local", nombre="E1", clave_hash=seguridad.hashea("clave-de-e1-larga"))
+    db.add(u); db.commit(); uid = u.id
+    nueva = {"Authorization": "Bearer " + cliente.post("/auth/entrar", json={"email": "e1@erp.local",
+                                                                              "clave": "clave-de-e1-larga"}).json()["token"]}
+    vieja = {"Authorization": "Bearer " + seguridad.firma({"t": "sesion", "u": uid}, 3600)}   # sin versión (de antes)
+    assert cliente.get("/api/version", headers=nueva).status_code == 200
+    assert cliente.get("/api/version", headers=vieja).status_code == 200      # compatible: la de antes sigue
+    u = db.get(UsuarioERP, uid); u.clave_hash = seguridad.hashea("otra-clave-de-e1"); db.commit()
+    assert cliente.get("/api/version", headers=nueva).status_code == 401      # cambiar la clave cierra las nuevas
+    assert cliente.get("/api/version", headers=vieja).status_code == 200
+    u = db.get(UsuarioERP, uid); u.activo = False; db.commit()
+    assert cliente.get("/api/version", headers=vieja).status_code == 401      # desactivado: ninguna sirve
+    assert cliente.get("/api/version", headers={"Authorization": "Bearer " + seguridad.firma(
+        {"t": "sesion", "u": 999999}, 3600)}).status_code == 401              # usuario que no existe
+    db.close()
+
+
+def test_e5_freno_por_ip_y_correo_inexistente(cliente, monkeypatch):
+    ip = {"X-Forwarded-For": "203.0.113.77"}
+    llamadas = []
+    real = seguridad.verifica
+    monkeypatch.setattr(seguridad, "verifica", lambda c, h: llamadas.append(h) or real(c, h))
+    assert cliente.post("/auth/entrar", headers=ip, json={"email": "nadie@erp.local", "clave": "x"}).status_code == 401
+    assert llamadas, "con un correo que no existe también se calcula un hash (mismo tiempo)"
+    for i in range(seguridad.INTENTOS_IP - 1):
+        cliente.post("/auth/entrar", headers=ip, json={"email": f"otro{i}@erp.local", "clave": "x"})
+    r = cliente.post("/auth/entrar", headers=ip, json={"email": "nuevo@erp.local", "clave": "x"})
+    assert r.status_code == 429
+    # otra IP no queda frenada
+    assert cliente.post("/auth/entrar", headers={"X-Forwarded-For": "203.0.113.78"},
+                        json={"email": "nuevo@erp.local", "clave": "x"}).status_code == 401
+    for k in [k for k in seguridad._fallos if "203.0.113." in k or k.endswith("@erp.local")]:
+        seguridad._fallos.pop(k, None)
+
+
+def test_e6_documentacion_solo_en_local():
+    from app.main import es_local
+    assert es_local("sqlite:///x.sqlite3", None) and es_local("postgresql://u:p@localhost:5432/db", None)
+    assert not es_local("postgresql://u:p@ep-algo.neon.tech/db", None)
+    assert not es_local("sqlite:///x.sqlite3", "true")                       # en Render nunca
+    assert not es_local(None, None) and not es_local("", None)
+
+
+def test_e7_un_500_no_muestra_la_excepcion(cliente, sesion):
+    from fastapi import HTTPException
+
+    @aplicacion.get("/_prueba_e7")
+    def _falla():
+        try:
+            raise RuntimeError("tabla_secreta columna_x")
+        except RuntimeError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        r = cliente.get("/_prueba_e7")
+        assert r.status_code == 500 and "tabla_secreta" not in r.text and r.json()["error"] == "Error interno del servidor"
+    finally:
+        aplicacion.router.routes[:] = [x for x in aplicacion.router.routes if getattr(x, "path", "") != "/_prueba_e7"]
+
+
+def test_e8_el_excel_dura_48_horas(monkeypatch):
+    e = seguridad.enlace_excel("AFIK", "2026_11_semana_45")
+    real = time.time
+    monkeypatch.setattr(seguridad.time, "time", lambda: real() + 47 * 3600)
+    assert seguridad.valida_enlace_excel(e, "AFIK", "2026_11_semana_45")
+    monkeypatch.setattr(seguridad.time, "time", lambda: real() + 49 * 3600)
+    assert not seguridad.valida_enlace_excel(e, "AFIK", "2026_11_semana_45")

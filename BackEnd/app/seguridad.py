@@ -26,10 +26,16 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from app.db import get_db
 
 VUELTAS = 210_000
 DURACION_SESION = 30 * 24 * 3600   # 30 días: el dueño no quiere entrar a cada rato (2026-11-06)
 INTENTOS, VENTANA = 5, 600
+# Seguridad E5 (2026-11-11): además del freno por correo, uno por IP. Más alto que el del correo para que una oficina
+# con varias personas detrás de la misma IP no se quede fuera por equivocarse unas cuantas veces.
+INTENTOS_IP = 20
 VIDA_CODIGO = 600                  # 10 minutos para escribir el código del correo
 
 
@@ -83,8 +89,20 @@ def lee_firma(token: str) -> dict | None:
         return None
 
 
-def token_de_sesion(uid: int) -> str:
-    return firma({"t": "sesion", "u": uid}, DURACION_SESION)
+def version_de_sesion(clave_hash: str) -> str:
+    """Seguridad E1 (2026-11-11): la «versión» de las sesiones de un usuario, sacada de su clave guardada (sin columna
+    nueva en la base). Cambiar la clave del usuario (o el «sin-clave:…» de quien entra desde GAELA) invalida TODAS sus
+    sesiones abiertas. Es una huella con el secreto: no revela nada de la clave."""
+    return hmac.new(_secreto(), f"version:{clave_hash}".encode(), hashlib.sha256).hexdigest()[:16]
+
+
+def token_de_sesion(uid: int, clave_hash: str | None = None) -> str:
+    # Seguridad E1 (2026-11-11): la sesión nueva lleva la versión («v»). Las de antes, sin «v», siguen valiendo hasta
+    # que venzan (compatibles hacia atrás), pero también se cortan si el usuario se desactiva.
+    datos = {"t": "sesion", "u": uid}
+    if clave_hash:
+        datos["v"] = version_de_sesion(clave_hash)
+    return firma(datos, DURACION_SESION)
 
 
 def pase(uid: int, jti: str) -> str:
@@ -114,8 +132,11 @@ def _huella_codigo(jti: str, codigo: str) -> str:
     return hmac.new(_secreto(), f"{jti}:{codigo}".encode(), hashlib.sha256).hexdigest()
 
 
-def enlace_excel(nombre: str, semana: str, dura: int = 7 * 24 * 3600) -> str:
-    """El token de un enlace de Excel (un técnico, una semana). Dura 7 días por defecto."""
+DURACION_EXCEL = 48 * 3600   # Seguridad E8 (2026-11-11): 48 h (antes 7 días). Los enlaces ya mandados no cambian.
+
+
+def enlace_excel(nombre: str, semana: str, dura: int = DURACION_EXCEL) -> str:
+    """El token de un enlace de Excel (un técnico, una semana). Dura 48 horas por defecto (Seguridad E8)."""
     return firma({"t": "excel", "n": nombre, "s": semana}, dura)
 
 
@@ -128,14 +149,49 @@ def valida_enlace_excel(token: str, nombre: str, semana: str) -> bool:
 _fallos: dict[str, list[float]] = defaultdict(list)
 
 
-def frenado(email: str) -> bool:
+def _recientes(clave: str) -> int:
     ahora = time.time()
-    _fallos[email] = [t for t in _fallos[email] if ahora - t < VENTANA]
-    return len(_fallos[email]) >= INTENTOS
+    vivos = [t for t in _fallos.get(clave, []) if ahora - t < VENTANA]
+    if vivos:
+        _fallos[clave] = vivos
+    else:
+        _fallos.pop(clave, None)     # Seguridad E5: no guardar para siempre cada correo o IP que falló una vez
+    return len(vivos)
+
+
+def frenado(email: str) -> bool:
+    return _recientes(email) >= INTENTOS
 
 
 def anota_fallo(email: str) -> None:
     _fallos[email].append(time.time())
+
+
+# Seguridad E5 (2026-11-11): freno por IP. Las claves llevan «ip:» delante para no mezclarse con los correos.
+def ip_de(request: Request) -> str:
+    """La IP de quien llama. Detrás del proxy de Render llega en X-Forwarded-For (la primera es la del cliente). Se
+    puede falsear, pero solo para saltarse ESTE freno (el del correo sigue); nunca deja fuera a otra persona."""
+    reenviada = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return (reenviada or (request.client.host if request.client else "") or "?")[:64]
+
+
+def frenado_ip(ip: str) -> bool:
+    return _recientes("ip:" + ip) >= INTENTOS_IP
+
+
+def anota_fallo_ip(ip: str) -> None:
+    _fallos["ip:" + ip].append(time.time())
+
+
+_RELLENO: list[str] = []
+
+
+def verifica_relleno(clave: str) -> None:
+    """Seguridad E5 (2026-11-11): con un correo que no existe se hace el mismo trabajo (PBKDF2) que con uno que sí,
+    para que el tiempo de respuesta no delate qué correos tienen usuario."""
+    if not _RELLENO:
+        _RELLENO.append(hashea(secrets.token_hex(16)))
+    verifica(clave, _RELLENO[0])
 
 
 def limpia_fallos(email: str) -> None:
@@ -149,17 +205,33 @@ class Quien:
     usuario: int | None
 
 
-def requiere_acceso(request: Request) -> Quien:
+def ruta_del_chat(path: str) -> bool:
+    """Seguridad E2 (2026-11-11): lo único que abre la llave del chat. Son TODAS las rutas que llaman el chat de GAELA
+    (`puerto_tecnicos.py`, `llaves_del_panel.py` y el paso de las pantallas de Técnicos en `checkout_propio.py`): todas
+    van bajo /api/bot/, más el pase de «Abrir el ERP». El resto de la API (panel del ERP) pide sesión de persona."""
+    return path == "/api/bot" or path.startswith("/api/bot/") or path == "/auth/pase-chat"
+
+
+def requiere_acceso(request: Request, db: Session = Depends(get_db)) -> Quien:
     """La puerta de toda la API: una sesión válida o la llave del chat. Sin eso, 401."""
+    from app.models_bot import UsuarioERP   # aquí para no cruzar imports al cargar los modelos
+
     llave = os.getenv("ERP_LLAVE_CHAT", "")
     dada = request.headers.get("x-llave-chat", "")
-    if llave and dada and hmac.compare_digest(dada, llave):
+    llave_buena = bool(llave and dada and hmac.compare_digest(dada, llave))
+    if llave_buena and ruta_del_chat(request.url.path):
         return Quien("chat", None)
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         d = lee_firma(auth[7:].strip())
         if d and d.get("t") == "sesion":
-            return Quien("persona", int(d["u"]))
+            # Seguridad E1 (2026-11-11): el usuario tiene que seguir existiendo y activo, y si la sesión trae versión,
+            # tiene que ser la de su clave de ahora (cambiarla cierra todas sus sesiones).
+            u = db.get(UsuarioERP, int(d["u"]))
+            if u and u.activo and ("v" not in d or hmac.compare_digest(str(d["v"]), version_de_sesion(u.clave_hash))):
+                return Quien("persona", u.id)
+    if llave_buena:   # Seguridad E2: la llave es buena, pero esta ruta no es del bot
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="La llave del chat solo sirve para el bot.")
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tu sesión terminó. Vuelve a entrar.")
 
 

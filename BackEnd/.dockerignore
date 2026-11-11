@@ -1,0 +1,10 @@
+# Seguridad E10 (2026-11-11): la imagen no lleva llaves, entorno local ni bases de prueba.
+.env
+.env.*
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite3
+*.csv

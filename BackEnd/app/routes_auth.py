@@ -3,7 +3,7 @@ entra sin clave: el chat pide un pase de un solo uso (`/auth/pase-chat`) y el pa
 
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,18 +21,22 @@ class Entrada(BaseModel):
 
 
 @router.post("/entrar")
-def entrar(body: Entrada, db: Session = Depends(get_db)):
+def entrar(body: Entrada, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
-    if seguridad.frenado(email):
+    ip = seguridad.ip_de(request)
+    if seguridad.frenado(email) or seguridad.frenado_ip(ip):   # Seguridad E5 (2026-11-11): también por IP
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                             detail="Demasiados intentos. Espera 10 minutos y vuelve a intentar.")
     u = db.query(UsuarioERP).filter(UsuarioERP.email == email, UsuarioERP.activo.is_(True)).first()
+    if not u:
+        seguridad.verifica_relleno(body.clave)   # Seguridad E5: mismo tiempo exista o no el correo
     if not u or not seguridad.verifica(body.clave, u.clave_hash):
         seguridad.anota_fallo(email)
+        seguridad.anota_fallo_ip(ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o clave incorrectos.")
     if not correo.activo():        # sin correo configurado no se puede mandar el código: basta la clave
         seguridad.limpia_fallos(email)
-        return {"token": seguridad.token_de_sesion(u.id), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
+        return {"token": seguridad.token_de_sesion(u.id, u.clave_hash), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
     codigo = f"{secrets.randbelow(900000) + 100000}"
     if not correo.enviar_codigo(u.email, codigo):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -73,7 +77,7 @@ def confirmar_codigo(body: Codigo, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ese código ya se usó. Pide otro.")
     seguridad.limpia_fallos(u.email)
-    return {"token": seguridad.token_de_sesion(u.id), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
+    return {"token": seguridad.token_de_sesion(u.id, u.clave_hash), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
 
 
 @router.get("/yo")
@@ -130,4 +134,4 @@ def canjear(body: Canje, db: Session = Depends(get_db)):
     u = db.get(UsuarioERP, int(d["u"]))
     if not u or not u.activo:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ese usuario del ERP está desactivado.")
-    return {"token": seguridad.token_de_sesion(u.id), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
+    return {"token": seguridad.token_de_sesion(u.id, u.clave_hash), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}

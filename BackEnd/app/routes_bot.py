@@ -208,7 +208,7 @@ def gasto_ia(desde: Optional[date] = None, hasta: Optional[date] = None, db: Ses
 
 @router.post("/excel-enlaces")
 def excel_enlaces(body: ExcelBody, db: Session = Depends(get_db)):
-    """Un enlace por técnico (7 días). La ruta es relativa al ERP: el chat le pone delante su dirección."""
+    """Un enlace por técnico (48 h; Seguridad E8, 2026-11-11). La ruta es relativa al ERP: el chat le pone delante su dirección."""
     nombres = [body.tecnico] if body.tecnico else servicio_bot.tecnicos_de_semana(db, body.semana)
     if body.tecnico:
         exacto = servicio_bot._nombre_exacto(db, body.tecnico)
