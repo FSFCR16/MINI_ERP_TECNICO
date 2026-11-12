@@ -236,3 +236,13 @@ def test_e8_el_excel_dura_48_horas(monkeypatch):
     assert seguridad.valida_enlace_excel(e, "AFIK", "2026_11_semana_45")
     monkeypatch.setattr(seguridad.time, "time", lambda: real() + 49 * 3600)
     assert not seguridad.valida_enlace_excel(e, "AFIK", "2026_11_semana_45")
+
+
+def test_e4_en_el_servidor_sin_correo_no_se_entra_solo_con_la_clave(cliente, usuario, monkeypatch):
+    """Seguridad E4 (2026-11-12): en Render, sin la llave del correo, el segundo factor ya no se salta en silencio."""
+    monkeypatch.delenv("ERP_RESEND_KEY", raising=False)
+    monkeypatch.setenv("RENDER", "true")
+    r = cliente.post("/auth/entrar", json={"email": usuario[0], "clave": usuario[1]})
+    assert r.status_code == 503 and "token" not in r.text
+    monkeypatch.delenv("RENDER")
+    assert "token" in cliente.post("/auth/entrar", json={"email": usuario[0], "clave": usuario[1]}).json()  # en el PC, sí

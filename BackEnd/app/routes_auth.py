@@ -1,6 +1,7 @@
 """Entrar al panel (plan del bot, fase 1): correo y clave → un token de sesión de 30 días. Desde la app de GAELA se
 entra sin clave: el chat pide un pase de un solo uso (`/auth/pase-chat`) y el panel lo canjea (`/auth/canjear`)."""
 
+import os
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -34,7 +35,14 @@ def entrar(body: Entrada, request: Request, db: Session = Depends(get_db)):
         seguridad.anota_fallo(email)
         seguridad.anota_fallo_ip(ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o clave incorrectos.")
-    if not correo.activo():        # sin correo configurado no se puede mandar el código: basta la clave
+    if not correo.activo():
+        # Seguridad E4 (2026-11-12): en el servidor (Render) el código al correo es obligatorio. Antes, si faltaba la
+        # llave del correo, se entraba solo con la clave SIN avisar. Ahora no se entra y queda en el log. En el PC
+        # (desarrollo) sigue bastando la clave.
+        if os.getenv("RENDER"):
+            print("CRITICO [auth] ERP_RESEND_KEY no está configurada: nadie puede recibir el código de entrada")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                                detail="El ERP no puede mandar el código de entrada al correo. Avisa al administrador.")
         seguridad.limpia_fallos(email)
         return {"token": seguridad.token_de_sesion(u.id, u.clave_hash), "nombre": u.nombre, "dura": seguridad.DURACION_SESION}
     codigo = f"{secrets.randbelow(900000) + 100000}"
