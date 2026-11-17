@@ -145,17 +145,34 @@ MXQ4F = ("American Services\nJob: MXQ4F\nName: Sofia\nJob Type: House Lockout\nP
          "Address: 2505 North Palo Santo Drive\nTucson, AZ 85745\n\n{}")
 
 
-def test_si_la_ia_pierde_el_valor_lo_pone_la_ultima_linea(monkeypatch):
+def test_si_la_ia_pierde_el_valor_lo_pone_el_texto(monkeypatch):
     # MXQ4F del 2026-11-16: «278 cc» al final y la IA devolvió el valor vacío (1 de cada 5 veces)
     _ia_falsa(monkeypatch, {"job_name": "MXQ4F", "valor_servicio": None, "tipo_pago": "CC"})
-    assert controllers.parse_ticket_con_uso(MXQ4F.format("278 cc"))[0]["valor_servicio"] == 278
-    for final, valor in (("$100 cash", 100), ("100$ CC", 100), ("  278.5 cc ", 278.5)):
-        assert lector.senales(MXQ4F.format(final))["valor_final"] == valor
+    r = controllers.parse_ticket_con_uso(MXQ4F.format("278 cc"))[0]
+    assert r["valor_servicio"] == 278 and r["tipo_pago"] == "CC"
 
 
-@pytest.mark.parametrize("final", ["278 cc 10$ parts", "8$ ccf", "300", "Tucson, AZ 85745", "278 zelle"])
-def test_la_ultima_linea_solo_cuenta_si_es_solo_el_pago(final):
-    assert lector.senales(MXQ4F.format(final))["valor_final"] is None
+def test_cash_y_tarjeta_en_lineas_distintas_es_mixto(monkeypatch):
+    # el ejemplo del dueño: «22cc» y debajo «44cash» → 66 MIXTO (la regla de la última línea daba 44)
+    _ia_falsa(monkeypatch, {"job_name": "MXQ4F", "valor_servicio": None, "tipo_pago": "CC"})
+    for final in ("22cc\n44cash", "22cc 44cash"):
+        r = controllers.parse_ticket_con_uso(MXQ4F.format(final))[0]
+        assert (r["valor_servicio"], r["tipo_pago"], r["valor_efectivo"], r["valor_tarjeta"]) == (66, "MIXTO", 44, 22)
+
+
+@pytest.mark.parametrize("final,valor", [
+    ("$100 cash", 100), ("100$ CC", 100), ("278.5 cc", 278.5), ("240$ scanpay", 240), ("100 cash app", 100),
+    ("740$ total 500 cash 240$ scanpay 10$ ccf", 740),
+    ("invoice 637641 total $280 parts $45", 280),          # la factura va ANTES de «total»: no cuenta
+    ("Inv 706355 Total: $355.00 Parts: $43.64", 355),
+])
+def test_el_valor_que_dice_el_texto(final, valor):
+    assert lector.senales(MXQ4F.format(final))["valor"] == valor
+
+
+@pytest.mark.parametrize("final", ["8$ ccf", "300", "260$ 10$ keys", "K 211$ Ccf 8$"])
+def test_sin_numero_mas_pago_no_hay_valor(final):
+    assert lector.senales(MXQ4F.format(final))["valor"] is None
 
 
 def test_la_ultima_linea_nunca_pisa_lo_que_leyo_la_ia(monkeypatch):

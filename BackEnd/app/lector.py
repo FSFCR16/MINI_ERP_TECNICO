@@ -11,8 +11,10 @@ Las reglas del dueño que son EXACTAS no se le preguntan a la IA: las aplica el 
   - «ccf 13» / «13 ccf»       → la comisión de la tarjeta son 13 DÓLARES, tal cual (ya NO son partes de Gil);
   - Cash App, Zelle o Venmo   → la plata la tiene Gil: es CC, pero esas apps no cobran comisión (0).
   Si dice «ccf N», ese valor manda sobre «no fee» y sobre las apps.
-  - última línea «278 cc» / «$100 cash» → si la IA dejó el valor vacío, es ese número (MXQ4F del 2026-11-16: la IA
-    lo pierde 1 de cada 5 veces cuando va suelto tras una dirección). Solo rellena el hueco: nunca pisa a la IA.
+  - el valor, SOLO si la IA lo dejó vacío (MXQ4F del 2026-11-16: lo pierde 1 de cada 5 veces): «total $N» manda; si
+    no, la suma de cada «número + pago» del mensaje («278 cc», «22cc / 44cash» = 66 MIXTO, «240$ scanpay»). Nunca
+    pisa a la IA. Probada contra los 263 trabajos con texto (sem. 45-46): 170 de 171 iguales (el otro lo cambió una
+    persona). Si tampoco hay nada, el trabajo cae en la cola de problemas.
 """
 
 from __future__ import annotations
@@ -25,9 +27,12 @@ _NUM = r"(\d+(?:[.,]\d{1,2})?)"
 _APPS = re.compile(r"\b(?:cash\s*app|cashapp|zelle|venmo)\b")
 _SIN_FEE = re.compile(r"\b(?:no|sin|without|zero)\s*(?:cc\s*|card\s*|tarjeta\s*)?(?:fee|fees|ccf)\b|\bfee\s*free\b|\bfree\s+fee\b|\bnofee\b")
 _CCF = re.compile(rf"\bccf\s*[:=]?\s*\$?\s*{_NUM}(?!\s*%)|(?<![\w.]){_NUM}\s*\$?\s*ccf\b")
-# La línea final de pago, entera: «278 cc», «$100 cash», «100$ cc». Nada más en la línea, para no tomar números de
-# la dirección ni casos con partes o comisión (esos los resuelve la IA).
-_VALOR_FINAL = re.compile(rf"\$?\s*{_NUM}\s*\$?\s*(?:cc|cash)")
+# El valor cuando la IA lo pierde. «número + forma de pago» en cualquier parte; «ccf» no cuenta (cc\b) y «cash app» es
+# tarjeta. «total»: el número va DESPUÉS («total: $154») o pegado a un $ antes («740$ total»): sin eso agarraba la
+# factura o el código postal («invoice 637641 total $280»).
+_TARJETA = r"cc|card|credit|scanpay|zelle|cash\s*app|cashapp|venmo"
+_PAGO = re.compile(rf"(?<![\w.])\$?\s*{_NUM}\s*\$?\s*({_TARJETA}|cash)\b")
+_TOTAL = re.compile(rf"\btotal\s*:?\s*\$?\s*{_NUM}|(?<![\w.])(?:\$\s*{_NUM}|{_NUM}\s*\$)\s*total\b")
 _PORCENTAJE = re.compile(r"(?<![\w.])(\d{1,3}(?:[.,]\d{1,2})?)\s*%")
 
 
@@ -47,7 +52,8 @@ def senales(texto: str) -> dict[str, Any]:
     sin_fee              True si no se cobra la comisión de la tarjeta («no fee» o una app)
     ccf                  la comisión de la tarjeta en dólares, si la dijo («ccf 13»); si no, None
     porcentaje_tecnico   el % suelto (lo que se lleva el técnico); None si no hay o si hay dos distintos
-    valor_final          el número de la última línea si es SOLO el pago («278 cc», «$100 cash»); si no, None
+    valor                el valor según el texto: «total N» o la suma de «número + pago»; None si no hay
+    cash, tarjeta        lo de cada lado (para el MIXTO); 0 si no aparece
     """
     t = norm(texto)
     app = bool(_APPS.search(t))
@@ -56,10 +62,16 @@ def senales(texto: str) -> dict[str, Any]:
     pct = next(iter(pcts)) if len(pcts) == 1 else None
     if pct is not None and not 0 <= pct <= 100:
         pct = None
-    lineas = [norm(x) for x in (texto or "").splitlines() if x.strip()]
-    final = _VALOR_FINAL.fullmatch(lineas[-1]) if lineas else None
+    cash = tarjeta = 0.0
+    for p in _PAGO.finditer(t):
+        if p[2] == "cash":
+            cash += _n(p[1])
+        else:
+            tarjeta += _n(p[1])
+    tot = _TOTAL.search(t)
+    valor = _n(next(g for g in tot.groups() if g)) if tot else (round(cash + tarjeta, 2) or None)
     return {"app": app, "sin_fee": app or bool(_SIN_FEE.search(t)), "ccf": _n(m[1] or m[2]) if m else None,
-            "porcentaje_tecnico": pct, "valor_final": _n(final[1]) if final else None}
+            "porcentaje_tecnico": pct, "valor": valor, "cash": round(cash, 2), "tarjeta": round(tarjeta, 2)}
 
 
 def comision(senal: dict[str, Any], calculada: float) -> float:
@@ -80,10 +92,13 @@ def completa(ia: dict[str, Any], senal: dict[str, Any]) -> dict[str, Any]:
     tipo = str(ia.get("tipo_pago") or "CASH").upper()
     if (senal["app"] or senal["ccf"] is not None) and tipo == "CASH":
         tipo = "CC"
-    valor = ia.get("valor_servicio")
-    if not valor and senal.get("valor_final"):      # la IA lo perdió y la última línea lo dice exacto
-        valor = senal["valor_final"]
-    return {**ia, "valor_servicio": valor, "tipo_pago": tipo, "sin_fee": senal["sin_fee"], "ccf": senal["ccf"],
+    extra: dict[str, Any] = {}
+    if not ia.get("valor_servicio") and senal.get("valor"):     # la IA lo perdió: lo dice el texto
+        extra["valor_servicio"] = senal["valor"]
+        if senal.get("cash") and senal.get("tarjeta"):           # «22cc / 44cash»: hubo de los dos
+            tipo = "MIXTO"
+            extra |= {"valor_efectivo": senal["cash"], "valor_tarjeta": senal["tarjeta"]}
+    return {**ia, **extra, "tipo_pago": tipo, "sin_fee": senal["sin_fee"], "ccf": senal["ccf"],
             "porcentaje_tecnico": senal["porcentaje_tecnico"]}
 
 
