@@ -502,16 +502,16 @@ client = OpenAI(api_key=APIKEY)
 # ══════════════════════════════════════════════════════════════
  
 MODELO_LECTOR = "gpt-6-luna"
-VERSION_PROMPT = "2026-11-09"     # súbela cuando cambie el prompt de app/lector.py: el historial del bot compara versiones
+VERSION_PROMPT = "2026-11-17"     # súbela cuando cambie el prompt de app/lector.py: el historial del bot compara versiones
 
 
 def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
     """Como `parse_ticket`, y además devuelve el gasto de la llamada (plan del bot, §9):
     {"modelo", "version_prompt", "tokens_entrada", "tokens_salida"}. Si falla, ({}, uso con lo que se sepa)."""
-    # El vocabulario aprobado del negocio va AL FINAL de las instrucciones (D-381); la versión dice cuántas palabras
+    # Reglas + vocabulario del negocio (sección 3, de la tabla) + campos (D-382); la versión dice cuántas palabras
     # llevaba, así Lectura de la IA puede comparar antes y después.
-    extra, n_palabras = vocabulario.texto_prompt()
-    uso = {"modelo": MODELO_LECTOR, "version_prompt": VERSION_PROMPT + (f"+v{n_palabras}" if n_palabras else ""),
+    prompt, n_palabras = vocabulario.prompt_actual()
+    uso = {"modelo": MODELO_LECTOR, "version_prompt": f"{VERSION_PROMPT}+v{n_palabras}",
            "tokens_entrada": 0, "tokens_salida": 0}
     raw = ""
     senal = lector.senales(text)          # lo exacto (ccf, no fee, %, apps) lo lee el código
@@ -520,7 +520,7 @@ def parse_ticket_con_uso(text: str) -> tuple[dict, dict]:
             model=MODELO_LECTOR,
             max_completion_tokens=2000,   # incluye lo que razona: este modelo no acepta max_tokens
             messages=[
-                {"role": "system", "content": lector.PROMPT + extra},
+                {"role": "system", "content": prompt},
                 {"role": "user",   "content": text}
             ]
         )

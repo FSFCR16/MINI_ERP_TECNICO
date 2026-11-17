@@ -252,7 +252,7 @@ def lectura_ia(tareas: BackgroundTasks, n: int = 6, db: Session = Depends(get_db
 
 
 class VocabularioBody(BaseModel):
-    accion: str                     # agregar · aceptar · rechazar · quitar · buscar
+    accion: str                     # agregar · editar · aceptar · rechazar · quitar · buscar
     id: Optional[int] = None
     palabra: Optional[str] = None
     significa: Optional[str] = None
@@ -266,6 +266,8 @@ def vocabulario_cambia(body: VocabularioBody, db: Session = Depends(get_db)):
     try:
         if body.accion == "agregar":
             return vocabulario.agregar(db, body.palabra or "", body.significa or "", body.explicacion, body.por)
+        if body.accion == "editar" and body.id:
+            return vocabulario.editar(db, body.id, body.significa or "", body.explicacion, body.por)
         if body.accion in ("aceptar", "rechazar", "quitar") and body.id:
             return vocabulario.decide(db, body.id, body.accion, body.por)
         if body.accion == "buscar":
@@ -274,6 +276,19 @@ def vocabulario_cambia(body: VocabularioBody, db: Session = Depends(get_db)):
     except vocabulario.VocabularioInvalido as e:
         raise HTTPException(status_code=400, detail=str(e))
     raise HTTPException(status_code=400, detail="Acción no válida.")
+
+
+class RevisadoBody(BaseModel):
+    ids: List[int]
+    revisado: bool = True
+
+
+@router.post("/lectura-ia/revisado")
+def lectura_revisado(body: RevisadoBody, db: Session = Depends(get_db)):
+    """D-382 · «Listo» / «Marcar todo como revisado» en Lo que leyó distinto (ids de trabajos). No cambia el acierto."""
+    if not body.ids or len(body.ids) > 500:
+        raise HTTPException(status_code=400, detail="Escoge los casos.")
+    return {"marcados": vocabulario.marca_revisados(db, body.ids, body.revisado)}
 
 
 @router.get("/semana")

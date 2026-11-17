@@ -31,6 +31,23 @@ def main() -> None:
                 con.execute(text(f"ALTER TABLE registros_semanas ADD COLUMN {nombre} {tipo}"))
                 print(f"✓ registros_semanas.{nombre}")
     Base.metadata.create_all(bind=engine)   # solo crea las tablas nuevas (usuarios_erp, diferencias_calculo, mensajes_bot)
+    # D-382: «Lo que leyó distinto» se marca como revisado; una palabra del vocabulario existe UNA vez; y las palabras
+    # que estaban escritas en el prompt pasan al vocabulario (una sola vez).
+    if "revisado_at" not in {c["name"] for c in inspect(engine).get_columns("mensajes_bot")}:
+        with engine.begin() as con:
+            con.execute(text("ALTER TABLE mensajes_bot ADD COLUMN revisado_at TIMESTAMP WITH TIME ZONE"))
+        print("✓ mensajes_bot.revisado_at")
+    with engine.begin() as con:
+        con.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS vocabulario_ia_palabra_uq ON vocabulario_ia (palabra)"))
+    from app import vocabulario
+    from app.db import SessionLocal
+    db = SessionLocal()
+    try:
+        n = vocabulario.siembra_base(db)
+    finally:
+        db.close()
+    if n:
+        print(f"✓ vocabulario: {n} palabras base")
     print("✓ base lista para el bot")
 
 

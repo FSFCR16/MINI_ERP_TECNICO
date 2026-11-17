@@ -1,46 +1,72 @@
 """
-EL VOCABULARIO DE LA IA (D-381, 2026-11-17) — que la IA aprenda cómo escribe ESTE negocio, sin entrenar nada.
+EL VOCABULARIO DE LA IA (D-381 / D-382, 2026-11-17) — qué significa cada palabra, en UN solo sitio.
 
-Contractors escribe con sus abreviaturas («10$ keys» = partes del técnico, «100$ t» = to tech, «after fee» = tarjeta) y
-la IA no las sabe: en la semana 9-15 nov fueron 10 de los 11 trabajos que alguien tuvo que corregir.
+El prompt (`lector.REGLAS`) dice cómo razonar; las PALABRAS viven solo aquí, en la tabla `vocabulario_ia`, y van a la
+sección 3 del prompt agrupadas por significado («pagado con tarjeta → CC: cc, card, scanpay…»). Antes estaban
+escritas a mano en el prompt Y en el vocabulario, y la búsqueda proponía las que la IA ya sabía (parts, scanpay, ccf).
 
-Cómo aprende, con una persona en medio (nada entra solo):
-  1. Las palabras `activa` se agregan al FINAL de las instrucciones de la IA en cada lectura (`texto_prompt`). Al
-     final y siempre igual: lo de antes no cambia y OpenAI cobra menos lo que se repite idéntico.
-  2. Una vez por semana (al abrir Lectura de la IA) o con «Buscar ahora», UNA llamada a la IA revisa los trabajos
-     YA VALIDADOS que alguien corrigió y propone palabras (`proponer`). Solo validados: lo «por validar» aún puede
-     cambiar. Cuesta menos de un centavo; si no hay corregidos nuevos, no llama.
-  3. En Lectura de la IA cualquiera del panel da «Aceptar» (pasa a `activa`) o «Rechazar» (no se vuelve a proponer),
-     o agrega una a mano.
-Lo exacto (la comisión «ccf N», el % suelto) NO va aquí: lo hace el código (`lector.senales`), gratis y sin fallar.
+  - Las palabras BASE (las que estaban en el prompt) se siembran una vez (`siembra_base`, desde migrar_bot.py) y luego
+    se editan como cualquier otra. Si la tabla aún no tiene las base (no se ha corrido la migración), se usan las del
+    código: la IA nunca lee sin vocabulario por un despiste.
+  - Cualquiera del panel agrega, edita, acepta, rechaza o quita. Una palabra existe UNA vez (índice único).
+  - Una vez por semana (o con «Buscar ya») UNA llamada a la IA revisa los trabajos validados y corregidos y propone
+    palabras nuevas; solo corre una búsqueda a la vez y nunca propone una que ya existe (activa, rechazada o quitada).
+  - Al aceptar una palabra, los casos de «Lo que leyó distinto» que la explican pasan a «Revisados».
+Lo exacto (la comisión «ccf N», el %) NO va aquí: lo hace el código (`lector.senales`).
 """
 
 from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import lectura_ia, lector
 from app.models import registrosSchemma
-from app.models_bot import BusquedaVocabulario, PalabraIA
+from app.models_bot import BusquedaVocabulario, MensajeBot, PalabraIA
 
-# lo que puede significar una palabra → (cómo se le dice al dueño, cómo se le explica a la IA)
+# significado → (cómo se le dice al dueño, cómo encabeza su línea en el prompt). El orden es el del prompt.
 SIGNIFICADOS: dict[str, tuple[str, str]] = {
-    "partes_tecnico": ("partes del técnico", "el número que la acompaña va en parts_tecnico"),
-    "partes_gil": ("partes de Gil", "el número que la acompaña va en parts_gil"),
-    "tech": ("pago al técnico (to tech)", "el número que la acompaña va en tech"),
-    "tarjeta": ("pagado con tarjeta", "el pago fue con tarjeta: tipo_pago CC (o MIXTO si también hubo cash)"),
-    "cash": ("pagado en efectivo", "el pago fue en efectivo: tipo_pago CASH (o MIXTO si también hubo tarjeta)"),
-    "valor": ("valor del servicio", "el número que la acompaña es valor_servicio"),
+    "partes_tecnico": ("partes del técnico", "partes del técnico → parts_tecnico"),
+    "partes_gil": ("partes de Gil", "partes de Gil → parts_gil"),
+    "tech": ("pago al técnico (to tech)", "pago al técnico → tech"),
+    "tarjeta": ("pagado con tarjeta", "pagado con tarjeta → CC"),
+    "cash": ("pagado en efectivo", "pagado en efectivo → CASH"),
+    "valor": ("valor del servicio", "valor del servicio → valor_servicio"),
+    "car_key": ("trabajo CAR KEY", "tipo CAR KEY"),
+    "lockout": ("trabajo LOCKOUT", "tipo LOCKOUT"),
 }
+
+# Lo que antes estaba escrito a mano en el prompt (2026-11-09), ahora como vocabulario: (palabra, significa, ejemplo)
+BASE: list[tuple[str, str, str | None]] = [
+    ("parts", "partes_tecnico", None), ("part", "partes_tecnico", None),
+    ("keys", "partes_tecnico", "«10$ keys» = 10 de partes del técnico"),
+    ("p", "partes_tecnico", "pegada al número: «10p», «$50p»"),
+    ("cp", "partes_gil", "«40$ cp», «cp 40»"), ("company parts", "partes_gil", None),
+    ("parts company", "partes_gil", None), ("part company", "partes_gil", None),
+    ("parte company", "partes_gil", None), ("parts gil", "partes_gil", None),
+    ("to tech", "tech", None), ("to technician", "tech", None), ("for tech", "tech", None),
+    ("para el tecnico", "tech", None),
+    ("cc", "tarjeta", None), ("card", "tarjeta", None), ("credit", "tarjeta", None), ("credit card", "tarjeta", None),
+    ("scanpay", "tarjeta", None), ("paid to", "tarjeta", "«paid to Afik»"), ("zelle", "tarjeta", None),
+    ("cash app", "tarjeta", None), ("venmo", "tarjeta", None),
+    ("cash", "cash", None), ("efectivo", "cash", None), ("le pago en mano al tecnico", "cash", None),
+    ("car key", "car_key", None), ("car key made", "car_key", None), ("key made", "car_key", None),
+    ("key program", "car_key", None), ("key programming", "car_key", None),
+    ("lockout", "lockout", None), ("car lockout", "lockout", None), ("lock out", "lockout", None),
+    ("locked out", "lockout", None), ("lock change", "lockout", None), ("lock", "lockout", None),
+]
+
 CADA = timedelta(days=7)
 MAX_EJEMPLOS = 40
 _PALABRA = re.compile(r"^[\w$#.\- ]{1,40}$")
+_busqueda = threading.Lock()          # una búsqueda a la vez (el 2026-11-17 corrieron dos y duplicaron todo)
 
 _cache: tuple[float, str, int] = (0.0, "", 0)
 _VIDA_CACHE_S = 60
@@ -51,7 +77,7 @@ def invalidar() -> None:
     _cache = (0.0, "", 0)
 
 
-def _norm_palabra(p: str) -> str:
+def norm_palabra(p: str) -> str:
     return re.sub(r"\s+", " ", (p or "").strip().lower())
 
 
@@ -62,36 +88,73 @@ def _fila(p: PalabraIA) -> dict[str, Any]:
             "por": p.por}
 
 
-# ─────────────────────────────── 1. lo que se le agrega a la IA ───────────────────────────────
-def _texto(palabras: list[PalabraIA]) -> str:
-    if not palabras:
+# ─────────────────────────────── 1. el vocabulario en el prompt ───────────────────────────────
+def texto(palabras: list[tuple[str, str, str | None]]) -> str:
+    """La sección 3: una línea por significado, sus palabras separadas por comas, cada ejemplo entre paréntesis."""
+    grupos: dict[str, list[str]] = {}
+    for palabra, significa, ejemplo in palabras:
+        if significa in SIGNIFICADOS:
+            grupos.setdefault(significa, []).append(f"{palabra} ({ejemplo})" if ejemplo else palabra)
+    if not grupos:
         return ""
-    lineas = [f"- «{p.palabra}»: {SIGNIFICADOS[p.significa][1]}." + (f" Ej.: {p.explicacion}" if p.explicacion else "")
-              for p in palabras if p.significa in SIGNIFICADOS]
-    return ("\n\n━━━ 7. VOCABULARIO DE ESTE NEGOCIO (aprobado por el dueño; manda sobre lo general) ━━━\n"
-            + "\n".join(lineas) + "\n")
+    lineas = [f"- {SIGNIFICADOS[s][1]}: {', '.join(grupos[s])}" for s in SIGNIFICADOS if s in grupos]
+    return "\n━━━ 3. VOCABULARIO (qué significa cada palabra) ━━━\n" + "\n".join(lineas) + "\n"
+
+
+def _activas(db: Session) -> list[tuple[str, str, str | None]] | None:
+    """Las activas de la tabla; None si las base aún no se sembraron (entonces manda el código)."""
+    if not db.query(PalabraIA.id).filter(PalabraIA.origen == "base").first():
+        return None
+    filas = db.query(PalabraIA).filter(PalabraIA.estado == "activa").order_by(PalabraIA.id).all()
+    return [(p.palabra, p.significa, p.explicacion) for p in filas]
 
 
 def texto_prompt(sesion: Callable[[], Session] | None = None) -> tuple[str, int]:
-    """(texto para el final de las instrucciones, cuántas palabras). Se guarda 60 s para no ir a la base en cada
-    mensaje de una tanda. Si la base falla, la IA lee sin vocabulario (nunca se frena una lectura por esto)."""
+    """(sección 3 del prompt, cuántas palabras). Se guarda 60 s para no ir a la base en cada mensaje de una tanda.
+    Sin base sembrada o si la base falla: las palabras BASE del código (nunca se lee sin vocabulario)."""
     global _cache
     if time.monotonic() - _cache[0] < _VIDA_CACHE_S:
         return _cache[1], _cache[2]
+    palabras = None
     try:
         if sesion is None:
             from app.db import SessionLocal
             sesion = SessionLocal
         db = sesion()
         try:
-            activas = db.query(PalabraIA).filter(PalabraIA.estado == "activa").order_by(PalabraIA.id).all()
-            _cache = (time.monotonic(), _texto(activas), len(activas))
+            palabras = _activas(db)
         finally:
             db.close()
-    except Exception as e:      # noqa: BLE001 — sin vocabulario se sigue leyendo
+    except Exception as e:      # noqa: BLE001 — se sigue con las del código
         print(f"[vocabulario] no se pudo leer: {e}")
-        return "", 0
+    palabras = BASE if palabras is None else palabras
+    _cache = (time.monotonic(), texto(palabras), len(palabras))
     return _cache[1], _cache[2]
+
+
+def prompt_actual() -> tuple[str, int]:
+    """El prompt completo que lee la IA: reglas + vocabulario + campos."""
+    t, n = texto_prompt()
+    return lector.prompt(t), n
+
+
+def siembra_base(db: Session) -> int:
+    """Una sola vez (migrar_bot.py): pasa las palabras del prompt viejo a la tabla. Si una ya estaba (quitada o
+    rechazada), queda activa como base. Idempotente: si ya hay base, no hace nada (lo que el dueño quite, quitado queda)."""
+    if db.query(PalabraIA.id).filter(PalabraIA.origen == "base").first():
+        return 0
+    n = 0
+    for palabra, significa, ejemplo in BASE:
+        fila = db.query(PalabraIA).filter(PalabraIA.palabra == palabra).first()
+        if fila is None:
+            fila = PalabraIA(palabra=palabra)
+            db.add(fila)
+        fila.significa, fila.estado, fila.origen = significa, "activa", "base"
+        fila.explicacion = fila.explicacion or ejemplo
+        fila.decidida_at, n = datetime.now(timezone.utc), n + 1
+    db.commit()
+    invalidar()
+    return n
 
 
 # ─────────────────────────────── 2. la lista y lo que se decide ───────────────────────────────
@@ -108,17 +171,37 @@ class VocabularioInvalido(ValueError):
     pass
 
 
+def _valida(significa: str | None, explicacion: str | None) -> str | None:
+    if significa not in SIGNIFICADOS:
+        raise VocabularioInvalido("Escoge qué significa la palabra.")
+    return (explicacion or "").strip()[:200] or None
+
+
 def agregar(db: Session, palabra: str, significa: str, explicacion: str | None, por: str | None) -> dict[str, Any]:
-    p = _norm_palabra(palabra)
-    if not _PALABRA.match(p) or significa not in SIGNIFICADOS:
-        raise VocabularioInvalido("Escribe la palabra (hasta 40 letras) y qué significa.")
+    """Agrega una palabra. Si ya existe (en cualquier estado) NO se duplica: queda activa con lo nuevo."""
+    p = norm_palabra(palabra)
+    if not _PALABRA.match(p):
+        raise VocabularioInvalido("Escribe la palabra (hasta 40 letras).")
+    ejemplo = _valida(significa, explicacion)
     fila = db.query(PalabraIA).filter(PalabraIA.palabra == p).first()
     if fila is None:
         fila = PalabraIA(palabra=p, origen="manual")
         db.add(fila)
     fila.significa, fila.estado = significa, "activa"
-    fila.explicacion = (explicacion or "").strip()[:200] or fila.explicacion
+    fila.explicacion = ejemplo or fila.explicacion
     fila.por, fila.decidida_at = (por or "")[:120] or None, datetime.now(timezone.utc)
+    db.commit()
+    invalidar()
+    return lista(db)
+
+
+def editar(db: Session, palabra_id: int, significa: str, explicacion: str | None, por: str | None) -> dict[str, Any]:
+    """Cambiar el significado o el ejemplo de una aprobada o de una propuesta (antes de aceptarla)."""
+    fila = db.get(PalabraIA, palabra_id)
+    if fila is None or fila.estado not in ("activa", "propuesta"):
+        raise VocabularioInvalido("Esa palabra ya cambió; recarga la pantalla.")
+    fila.significa, fila.explicacion = significa, _valida(significa, explicacion)
+    fila.por = (por or "")[:120] or fila.por
     db.commit()
     invalidar()
     return lista(db)
@@ -132,9 +215,25 @@ def decide(db: Session, palabra_id: int, accion: str, por: str | None) -> dict[s
     if fila is None or nuevo is None or fila.estado != nuevo[0]:
         raise VocabularioInvalido("Esa palabra ya cambió; recarga la pantalla.")
     fila.estado, fila.por, fila.decidida_at = nuevo[1], (por or "")[:120] or None, datetime.now(timezone.utc)
+    if accion == "aceptar" and fila.evidencia:         # los casos que la explican ya están atendidos
+        jobs = [str(j).strip().upper() for j in json.loads(fila.evidencia)]
+        regs = db.query(registrosSchemma).filter(registrosSchemma.job_name.in_(jobs)).all()
+        marca_revisados(db, [r.id for r in regs], True, guardar=False)
     db.commit()
     invalidar()
     return lista(db)
+
+
+def marca_revisados(db: Session, registro_ids: list[int], revisado: bool, guardar: bool = True) -> int:
+    """«Lo que leyó distinto»: pasa los casos a Revisados (o los devuelve). No cambia el acierto: solo la lista."""
+    ids = [m for (m,) in db.query(registrosSchemma.mensaje_id).filter(
+        registrosSchemma.id.in_(registro_ids), registrosSchemma.mensaje_id.isnot(None)).all()]
+    if ids:
+        db.query(MensajeBot).filter(MensajeBot.id.in_(ids)).update(
+            {MensajeBot.revisado_at: datetime.now(timezone.utc) if revisado else None}, synchronize_session=False)
+    if guardar:
+        db.commit()
+    return len(ids)
 
 
 # ─────────────────────────────── 3. proponer palabras nuevas ───────────────────────────────
@@ -147,8 +246,8 @@ la IA leyó partes del técnico 0 y quedó 10 → «keys» significa partes del 
 Reglas:
 - Propón solo palabras que APARECEN en el mensaje y que explican la corrección. Si la corrección no se explica por una
   palabra (la persona cambió un valor por su cuenta), no propongas nada para ese caso.
-- «significa» es uno de: partes_tecnico, partes_gil, tech, tarjeta, cash, valor.
-- No propongas estas, ya decididas: {conocidas}.
+- «significa» es uno de: {significados}.
+- NO propongas ninguna de estas, ya están decididas: {conocidas}.
 - Una palabra, una vez (junta los jobs que la muestran).
 
 Devuelve SOLO JSON: {{"propuestas": [{{"palabra": "keys", "significa": "partes_tecnico",
@@ -177,8 +276,17 @@ def toca(db: Session) -> bool:
 
 
 def proponer(db: Session, pide: Pide | None = None) -> dict[str, Any]:
-    """Revisa los trabajos validados y corregidos desde la última búsqueda; propone palabras. {revisados, propuestas}."""
-    pide = pide or _pide_ia
+    """Revisa los trabajos validados y corregidos desde la última búsqueda; propone palabras. Una sola a la vez: si
+    ya hay otra corriendo, no hace nada ({"ocupado": True})."""
+    if not _busqueda.acquire(blocking=False):
+        return {"revisados": 0, "propuestas": 0, "ocupado": True}
+    try:
+        return _proponer(db, pide or _pide_ia)
+    finally:
+        _busqueda.release()
+
+
+def _proponer(db: Session, pide: Pide) -> dict[str, Any]:
     ultima = db.query(BusquedaVocabulario).order_by(BusquedaVocabulario.id.desc()).first()
     desde = ultima.hasta_registro if ultima else 0
     regs = (db.query(registrosSchemma)
@@ -196,15 +304,15 @@ def proponer(db: Session, pide: Pide | None = None) -> dict[str, Any]:
         mal = [f for f in lectura_ia.fallos(r, ia) if f.get("quien") != "codigo"]
         if not mal:
             continue
-        cola = lector.norm(m.texto)[-160:]
         textos[(r.job_name or "").strip().upper()] = lector.norm(m.texto)
-        casos.append(f"- job {r.job_name}: «…{cola}» · " +
+        casos.append(f"- job {r.job_name}: «…{lector.norm(m.texto)[-160:]}» · " +
                      "; ".join(f"{f['campo']}: leyó {f['leyo']} → quedó {f['quedo']}" for f in mal))
     casos = casos[-MAX_EJEMPLOS:]
     nuevas, costo = 0, 0.0
     if casos:
-        conocidas = sorted({p.palabra for p in db.query(PalabraIA).all()})
-        instrucciones = PROMPT_PROPONER.format(conocidas=", ".join(f"«{x}»" for x in conocidas) or "ninguna")
+        conocidas = {p for (p,) in db.query(PalabraIA.palabra).all()} | {p for p, _, _ in BASE}
+        instrucciones = PROMPT_PROPONER.format(significados=", ".join(SIGNIFICADOS),
+                                               conocidas=", ".join(f"«{x}»" for x in sorted(conocidas)))
         try:
             salida, uso = pide(instrucciones, "\n".join(casos))
         except Exception as e:      # noqa: BLE001 — si la IA falla, se intenta la semana siguiente
@@ -213,15 +321,19 @@ def proponer(db: Session, pide: Pide | None = None) -> dict[str, Any]:
         from app.servicio_bot import costo as costo_de
         costo = costo_de(uso)
         for x in (salida or {}).get("propuestas", [])[:10]:
-            p, sig = _norm_palabra(str(x.get("palabra", ""))), x.get("significa")
+            p, sig = norm_palabra(str(x.get("palabra", ""))), x.get("significa")
             jobs = [str(j).strip().upper() for j in (x.get("jobs") or [])][:10]
             # Solo si de verdad está en alguno de esos mensajes: la IA no inventa palabras.
             aparece = any(re.search(rf"(?<![a-z0-9]){re.escape(p)}(?![a-z0-9])", textos.get(j, "")) for j in jobs)
             if not _PALABRA.match(p) or sig not in SIGNIFICADOS or not aparece or p in conocidas:
                 continue
-            db.add(PalabraIA(palabra=p, significa=sig, explicacion=str(x.get("explicacion") or "")[:200] or None,
-                             estado="propuesta", origen="propuesta", evidencia=json.dumps(jobs)))
-            conocidas.append(p)
+            try:
+                with db.begin_nested():     # el índice único es la última defensa contra un duplicado
+                    db.add(PalabraIA(palabra=p, significa=sig, explicacion=str(x.get("explicacion") or "")[:200] or None,
+                                     estado="propuesta", origen="propuesta", evidencia=json.dumps(jobs)))
+            except IntegrityError:
+                continue
+            conocidas.add(p)
             nuevas += 1
     db.add(BusquedaVocabulario(hasta_registro=hasta, revisados=len(casos), propuestas=nuevas, costo_usd=costo))
     db.commit()

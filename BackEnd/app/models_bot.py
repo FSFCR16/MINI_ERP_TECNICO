@@ -63,6 +63,7 @@ class MensajeBot(Base):
     registro_id = Column(Integer, nullable=True, index=True)
     datos_finales = Column(Text, nullable=True)                           # JSON al validar
     campos_corregidos = Column(Text, nullable=True)                       # JSON: lista de campos que cambió una persona
+    revisado_at = Column(TIMESTAMP(timezone=True), nullable=True)         # D-382: ya visto en «Lo que leyó distinto»
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), index=True)
 
 
@@ -83,7 +84,7 @@ class PalabraIA(Base):
     __tablename__ = "vocabulario_ia"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    palabra = Column(String(40), nullable=False, index=True)
+    palabra = Column(String(40), nullable=False, unique=True)     # una palabra, UNA vez (D-382)
     significa = Column(String(20), nullable=False)        # partes_tecnico · partes_gil · tech · tarjeta · cash · valor
     explicacion = Column(String(200), nullable=True)      # «10$ keys» = 10 de partes del técnico
     estado = Column(String(12), nullable=False, default="activa")

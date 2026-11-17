@@ -91,15 +91,18 @@ def por_trabajo(db: Session, regs: list[registrosSchemma]) -> dict[int, dict[str
     return salida
 
 
-def mal_leidos(db: Session, regs: list[registrosSchemma], limite: int = 50) -> list[dict[str, Any]]:
-    """Los trabajos que la IA leyó distinto, del más nuevo al más viejo (la lista de «Lectura de la IA»)."""
+def mal_leidos(db: Session, regs: list[registrosSchemma], limite: int = 300) -> list[dict[str, Any]]:
+    """Los trabajos que la IA leyó distinto, del más nuevo al más viejo (la lista de «Lectura de la IA»). `revisado`:
+    alguien ya lo vio (D-382); la pantalla los separa en «Por revisar» y «Revisados». No cambia el acierto."""
     lecturas = por_trabajo(db, regs)
+    vistos = {m.id for m in _mensajes(db, regs).values() if m.revisado_at}
     salida = []
     for r in sorted(regs, key=lambda x: -x.id):
         if r.id in lecturas:
             salida.append({"id": r.id, "job_name": (r.job_name or "").strip(), "tecnico": r.nombre,
                            "semana": r.semana.semana if r.semana else None,
-                           "por_validar": r.validacion == POR_VALIDAR, **lecturas[r.id]})
+                           "por_validar": r.validacion == POR_VALIDAR, "revisado": r.mensaje_id in vistos,
+                           **lecturas[r.id]})
             if len(salida) >= limite:
                 break
     return salida

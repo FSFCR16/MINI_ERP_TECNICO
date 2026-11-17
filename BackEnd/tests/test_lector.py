@@ -44,8 +44,9 @@ def test_la_comision_ccf_manda_luego_no_fee_luego_el_contrato():
 
 
 def test_un_solo_prompt_por_secciones_y_ccf_ya_no_son_partes():
-    p = lector.PROMPT
-    for seccion in ("1. GENERAL", "2. EL PAGO", "3. SI ES CASH", "4. SI ES CC", "5. SI ES MIXTO", "6. CAMPOS"):
+    from app import vocabulario
+    p = vocabulario.prompt_actual()[0]
+    for seccion in ("1. REGLAS", "2. EL PAGO", "3. VOCABULARIO", "4. CAMPOS"):
         assert seccion in p
     assert "→ parts_gil=10" not in p and '"tipo_pago"' in p
 
@@ -63,9 +64,10 @@ def test_la_ia_decide_el_pago_y_el_codigo_pone_lo_exacto(monkeypatch):
     visto = {}
     _ia_falsa(monkeypatch, {"job_name": "Z1", "job_type": "LOCKOUT", "valor_servicio": 300, "tipo_pago": "MIXTO"}, visto)
     r, uso = controllers.parse_ticket_con_uso("Z1 lockout 300 split 40% ccf 13")
-    assert visto["system"] == lector.PROMPT
+    from app import vocabulario
+    assert visto["system"] == vocabulario.prompt_actual()[0]
     assert r["tipo_pago"] == "MIXTO" and r["ccf"] == 13 and r["porcentaje_tecnico"] == 40   # el pago, de la IA
-    assert uso["version_prompt"] == controllers.VERSION_PROMPT
+    assert uso["version_prompt"].startswith(controllers.VERSION_PROMPT + "+v")
 
 
 def test_una_app_nunca_queda_en_cash(monkeypatch):
