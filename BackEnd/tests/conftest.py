@@ -48,3 +48,16 @@ def usuario():
 def sesion(cliente, usuario):
     r = cliente.post("/auth/entrar", json={"email": usuario[0], "clave": usuario[1]})
     return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+@pytest.fixture(autouse=True)
+def _sin_ia_real_en_el_vocabulario(monkeypatch):
+    """D-381: abrir Lectura de la IA dispara la búsqueda semanal de palabras; en las pruebas NUNCA va a OpenAI."""
+    from app import vocabulario
+
+    def no(*_a, **_k):
+        raise AssertionError("una prueba intentó llamar a la IA real del vocabulario")
+    monkeypatch.setattr(vocabulario, "_pide_ia", no)
+    vocabulario.invalidar()
+    yield
+    vocabulario.invalidar()

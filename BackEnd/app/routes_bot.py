@@ -8,12 +8,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app import seguridad, servicio_bot
+from app import seguridad, servicio_bot, vocabulario
 from app.db import get_db
 
 router = APIRouter(prefix="/api/bot", tags=["bot"], redirect_slashes=False)
@@ -243,8 +243,37 @@ def metricas(n: int = 6, db: Session = Depends(get_db)):
 
 
 @router.get("/lectura-ia")
-def lectura_ia(n: int = 6, db: Session = Depends(get_db)):
-    return servicio_bot.lectura(db, min(max(n, 1), 26))
+def lectura_ia(tareas: BackgroundTasks, n: int = 6, db: Session = Depends(get_db)):
+    # D-381: con la pantalla viene el vocabulario; y una vez por semana se buscan palabras nuevas en segundo plano
+    # (la pantalla no espera a la IA: lo propuesto aparece la próxima vez que se abra).
+    if vocabulario.toca(db):
+        tareas.add_task(vocabulario.proponer_si_toca)
+    return {**servicio_bot.lectura(db, min(max(n, 1), 26)), "vocabulario": vocabulario.lista(db)}
+
+
+class VocabularioBody(BaseModel):
+    accion: str                     # agregar · aceptar · rechazar · quitar · buscar
+    id: Optional[int] = None
+    palabra: Optional[str] = None
+    significa: Optional[str] = None
+    explicacion: Optional[str] = None
+    por: Optional[str] = None
+
+
+@router.post("/vocabulario")
+def vocabulario_cambia(body: VocabularioBody, db: Session = Depends(get_db)):
+    """Lo que se decide en Lectura de la IA. Devuelve el vocabulario como queda (y en «buscar», lo que encontró)."""
+    try:
+        if body.accion == "agregar":
+            return vocabulario.agregar(db, body.palabra or "", body.significa or "", body.explicacion, body.por)
+        if body.accion in ("aceptar", "rechazar", "quitar") and body.id:
+            return vocabulario.decide(db, body.id, body.accion, body.por)
+        if body.accion == "buscar":
+            r = vocabulario.proponer(db)
+            return {**vocabulario.lista(db), "busqueda": r}
+    except vocabulario.VocabularioInvalido as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    raise HTTPException(status_code=400, detail="Acción no válida.")
 
 
 @router.get("/semana")

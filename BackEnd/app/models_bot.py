@@ -73,3 +73,36 @@ class PaseUsado(Base):
 
     jti = Column(String(40), primary_key=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class PalabraIA(Base):
+    """D-381 · El vocabulario de ESTE negocio que la IA no sabe («keys» = partes, «t» = to tech). Las `activa` van al
+    final de las instrucciones de la IA en cada lectura. Las `propuesta` salen de los trabajos corregidos y esperan a
+    que alguien dé «Aceptar» en Lectura de la IA; las `rechazada` no se vuelven a proponer; `quitada` = la sacaron."""
+
+    __tablename__ = "vocabulario_ia"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    palabra = Column(String(40), nullable=False, index=True)
+    significa = Column(String(20), nullable=False)        # partes_tecnico · partes_gil · tech · tarjeta · cash · valor
+    explicacion = Column(String(200), nullable=True)      # «10$ keys» = 10 de partes del técnico
+    estado = Column(String(12), nullable=False, default="activa")
+    origen = Column(String(12), nullable=False, default="manual")   # manual · propuesta
+    evidencia = Column(Text, nullable=True)               # JSON: los jobs corregidos que la sugieren
+    por = Column(String(120), nullable=True)              # quién la agregó o la decidió
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    decidida_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+
+class BusquedaVocabulario(Base):
+    """D-381 · Cada vez que se buscaron palabras nuevas en los trabajos corregidos (una vez por semana, o a mano).
+    `hasta_registro`: el último trabajo revisado, para no volver a mandarle a la IA lo ya visto."""
+
+    __tablename__ = "vocabulario_busquedas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    hasta_registro = Column(Integer, nullable=False, default=0)
+    revisados = Column(Integer, nullable=False, default=0)
+    propuestas = Column(Integer, nullable=False, default=0)
+    costo_usd = Column(Float, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
