@@ -320,9 +320,16 @@ export function formatearFechaSemana(fecha) {
 // No hay fecha en las filas del front, pero el id es autoincremental → id mayor = más reciente.
 //   "recientes" → id desc (los aún sin guardar van primero, son lo más nuevo)
 //   "antiguos" / "id" → id asc (los aún sin guardar van al final)
+// «Recientes» y «Antiguos» van por ORDEN DE LLEGADA del mensaje (`orden_llegada`, lo manda el servidor, D-381): un
+// repetido aceptado tarde queda en su puesto. Lo guardado en el panel después de cargar no lo trae: va detrás, por id.
+// «Por ID» sigue siendo el id tal cual.
+const LLEGADA_SIN_DATO = 1e9
 export function ordenarRegistros(lista, modo) {
     if (!Array.isArray(lista) || !modo) return lista
-    const idNum = (r) => (r?.id_registro == null ? null : Number(r.id_registro))
+    const idNum = modo === "id"
+        ? (r) => (r?.id_registro == null ? null : Number(r.id_registro))
+        : (r) => (r?.orden_llegada != null ? Number(r.orden_llegada)
+            : r?.id_registro == null ? null : LLEGADA_SIN_DATO + Number(r.id_registro))
     const copia = [...lista]
     if (modo === "recientes") {
         copia.sort((a, b) => {

@@ -184,13 +184,22 @@ def obtenerRegistrosSemana( nombre: str, semana: str, db: Session):
             detail="La semana solicitada no existe"
         )
 
-    registros = db.query(registrosSchemma).filter(
+    registros = por_llegada(db.query(registrosSchemma).filter(
         registrosSchemma.semana_id == semanaDB.id,
         registrosSchemma.nombre == nombre
-    ).order_by(registrosSchemma.created_at.asc()).all()
+    )).all()
 
     lecturas = lectura_ia.por_trabajo(db, registros)       # el puntico de la tabla: lo que la IA leyó distinto
-    return [{**jsonable_encoder(r), "lectura": lecturas.get(r.id)} for r in registros]
+    # `orden_llegada`: el panel ordena con esto («Recientes» / «Antiguos»), no con el id (D-381)
+    return [{**jsonable_encoder(r), "lectura": lecturas.get(r.id), "orden_llegada": i} for i, r in enumerate(registros)]
+
+
+def por_llegada(q):
+    """Los trabajos en el orden en que LLEGÓ su mensaje a WhatsApp; los del panel, por cuándo se guardaron (D-381).
+    Antes era por cuándo se guardó: un repetido aceptado o un «sin valor» completado más tarde quedaba de último
+    aunque su mensaje hubiera llegado primero (Contractors, 2026-11-16)."""
+    return q.outerjoin(MensajeBot, MensajeBot.id == registrosSchemma.mensaje_id).order_by(
+        func.coalesce(MensajeBot.recibido, registrosSchemma.created_at).asc(), registrosSchemma.id.asc())
 
     
 def obtenerHistorialTenico(nombre:str,db: Session):
@@ -296,12 +305,10 @@ def exporToExcelController(registros: List[SemanaTecnicoSchemaFront], nombre: st
 
     listIDSRegistros = [reg.id_registro for reg in registros]
 
-    registrosDB = (
+    registrosDB = por_llegada(
         db.query(registrosSchemma)
         .filter(registrosSchemma.id.in_(listIDSRegistros))
-        .order_by(registrosSchemma.created_at.asc())
-        .all()
-    )
+    ).all()
 
     if not registrosDB:
         raise HTTPException(
