@@ -206,3 +206,24 @@ def test_el_contrato_con_cc_como_cash_lo_trae_encendido():
     assert "registro" in t["resultados"][0], t["resultados"][0]
     assert _reg(t["resultados"][0]["registro"]["id"]).is_cash is True
     assert _crea("lec-q2", {**CC300, "job_name": "LEC-Q2"}).is_cash is False          # AFIK no lo tiene
+
+
+# ── el ccf con número a los dos lados (24CPT del 2026-11-16) ──
+@pytest.mark.parametrize("texto,valor_ia,ccf", [
+    ("Please send K 211$ Ccf 8$", 211, 8),          # 24CPT: el de antes es el valor, no la comisión
+    ("K 150 scanpay 6$ ccf 5$ parts parta", 150, 6), # el de después son partes: queda el de antes
+    ("ccf 13", 300, 13), ("13 ccf", 300, 13),
+    ("412$ | 30$ parts | 17$ ccf", 412, 17),
+    ("100 cash 200 card 9 ccf", 300, 9),
+])
+def test_el_ccf_con_numeros_a_los_dos_lados(texto, valor_ia, ccf):
+    assert lector.completa({"valor_servicio": valor_ia, "tipo_pago": "CC"}, lector.senales(texto))["ccf"] == ccf
+
+
+def test_ccf_seguido_de_partes_no_es_comision():
+    assert lector.senales("ccf 10 keys")["ccf"] is None
+
+
+def test_el_24cpt_entero_por_el_lector(monkeypatch):
+    _ia_falsa(monkeypatch, {"job_name": "24CPT", "valor_servicio": 211, "tipo_pago": "CC"})
+    assert controllers.parse_ticket_con_uso("Job: 24CPT\nPlease send K 211$ Ccf 8$")[0]["ccf"] == 8

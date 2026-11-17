@@ -26,7 +26,11 @@ from typing import Any
 _NUM = r"(\d+(?:[.,]\d{1,2})?)"
 _APPS = re.compile(r"\b(?:cash\s*app|cashapp|zelle|venmo)\b")
 _SIN_FEE = re.compile(r"\b(?:no|sin|without|zero)\s*(?:cc\s*|card\s*|tarjeta\s*)?(?:fee|fees|ccf)\b|\bfee\s*free\b|\bfree\s+fee\b|\bnofee\b")
-_CCF = re.compile(rf"\bccf\s*[:=]?\s*\$?\s*{_NUM}(?!\s*%)|(?<![\w.]){_NUM}\s*\$?\s*ccf\b")
+# Los dos lados de «ccf», por separado: con una sola búsqueda «211$ ccf» se come la palabra y «ccf 8$» ya no aparece.
+_CCF_DESPUES = re.compile(rf"\bccf\s*[:=]?\s*\$?\s*{_NUM}(?!\s*%)")
+_CCF_ANTES = re.compile(rf"(?<![\w.]){_NUM}\s*\$?\s*ccf\b")
+# Lo que va pegado DESPUÉS de un número y lo hace partes, no comisión: «ccf 5$ parts», «ccf 10 keys», «ccf 15p».
+_ES_PARTE = re.compile(r"\s*\$?\s*(?:parts?|partes?|keys?|p|cp)\b")
 # El valor cuando la IA lo pierde. «número + forma de pago» en cualquier parte; «ccf» no cuenta (cc\b) y «cash app» es
 # tarjeta. «total»: el número va DESPUÉS («total: $154») o pegado a un $ antes («740$ total»): sin eso agarraba la
 # factura o el código postal («invoice 637641 total $280»).
@@ -57,7 +61,6 @@ def senales(texto: str) -> dict[str, Any]:
     """
     t = norm(texto)
     app = bool(_APPS.search(t))
-    m = _CCF.search(t)
     pcts = {_n(x) for x in _PORCENTAJE.findall(t)}
     pct = next(iter(pcts)) if len(pcts) == 1 else None
     if pct is not None and not 0 <= pct <= 100:
@@ -70,8 +73,29 @@ def senales(texto: str) -> dict[str, Any]:
             tarjeta += _n(p[1])
     tot = _TOTAL.search(t)
     valor = _n(next(g for g in tot.groups() if g)) if tot else (round(cash + tarjeta, 2) or None)
-    return {"app": app, "sin_fee": app or bool(_SIN_FEE.search(t)), "ccf": _n(m[1] or m[2]) if m else None,
-            "porcentaje_tecnico": pct, "valor": valor, "cash": round(cash, 2), "tarjeta": round(tarjeta, 2)}
+    opciones = _opciones_ccf(t)
+    return {"app": app, "sin_fee": app or bool(_SIN_FEE.search(t)), "ccf": _elige_ccf(opciones, valor),
+            "ccf_opciones": opciones, "porcentaje_tecnico": pct, "valor": valor, "cash": round(cash, 2),
+            "tarjeta": round(tarjeta, 2)}
+
+
+def _opciones_ccf(t: str) -> list[float]:
+    """Los números que pueden ser la comisión, en el orden del texto: el de antes («8$ ccf») y el de después («ccf 8»).
+    Contractors escribe de las dos formas («6$ ccf 5$ parts» → 6; «K 211$ Ccf 8$» → 8), así que se juntan los dos y
+    se descarta el de después si es partes («ccf 5$ parts»)."""
+    antes = [(m.start(1), _n(m[1])) for m in _CCF_ANTES.finditer(t)]
+    despues = [(m.start(1), _n(m[1])) for m in _CCF_DESPUES.finditer(t) if not _ES_PARTE.match(t, m.end())]
+    return [v for _, v in sorted(antes + despues)]
+
+
+def _elige_ccf(opciones: list[float], *valores: Any) -> float | None:
+    """24CPT del 2026-11-16: «K 211$ Ccf 8$» daba 211. Con dos candidatos, el que es el valor del servicio no es la
+    comisión. Si después de eso queda más de uno, el primero (como siempre)."""
+    if not opciones:
+        return None
+    servicio = {round(float(v), 2) for v in valores if v}
+    quedan = [x for x in opciones if round(x, 2) not in servicio] if len(opciones) > 1 else opciones
+    return (quedan or opciones)[0]
 
 
 def comision(senal: dict[str, Any], calculada: float) -> float:
@@ -89,6 +113,8 @@ def completa(ia: dict[str, Any], senal: dict[str, Any]) -> dict[str, Any]:
     CASH, es CC (si dijo MIXTO, se queda MIXTO)."""
     if not ia:
         return ia
+    if senal.get("ccf_opciones"):     # con lo que leyó la IA se sabe mejor cuál número es el valor
+        senal = {**senal, "ccf": _elige_ccf(senal["ccf_opciones"], senal.get("valor"), ia.get("valor_servicio"))}
     tipo = str(ia.get("tipo_pago") or "CASH").upper()
     if (senal["app"] or senal["ccf"] is not None) and tipo == "CASH":
         tipo = "CC"
