@@ -42,7 +42,7 @@ def test_lo_pegado_en_el_panel_se_guarda_y_la_tabla_marca_lo_que_cambio(cliente,
     filas = cliente.get(f"/api/obtenerRegistros/AFIK/{ACTUAL}", headers=sesion).json()
     mia = next(f for f in filas if f["job_name"] == "PAN-1")
     assert mia["mensaje_id"] == mid and mia["lectura"]["fallos"] == [
-        {"clave": "tipo_pago", "campo": "pago", "leyo": "CASH", "quedo": "CC"}]
+        {"clave": "tipo_pago", "campo": "pago", "leyo": "CASH", "quedo": "CC", "quien": "ia"}]
     assert "PAN-1 lockout 300" in mia["lectura"]["texto"]
     db = SessionLocal()
     assert db.get(MensajeBot, mid).registro_id == mia["id"]
@@ -121,3 +121,17 @@ def test_el_gasto_cuenta_por_dia_de_colombia():
     assert g["mensajes"] == 1 and g["por_dia"] == [{"dia": "2025-03-10", "mensajes": 1, "costo_usd": 0.25}]
     assert servicio_bot.gasto_ia(db, date(2025, 3, 11), date(2025, 3, 11))["mensajes"] == 0
     db.close()
+
+
+def test_la_comision_mal_puesta_sale_como_error_del_codigo():
+    # 24CPT del 2026-11-16: la regla puso 211 de comisión y quedó 8. No salía en ninguna parte (D-381).
+    from types import SimpleNamespace
+    from app import lectura_ia
+    reg = SimpleNamespace(tipo_pago="CC", valor_servicio=211, valor_efectivo=0, valor_tarjeta=0, partes_tecnico=0,
+                          partes_gil=0, tech=0, job_name="24CPT", job="LOCKOUT", porcentaje_cc=8)
+    ia = {"tipo_pago": "CC", "valor_servicio": 211, "parts_tecnico": 0, "parts_gil": 0, "tech": 0,
+          "job_name": "24CPT", "job_type": "LOCKOUT", "ccf": 211}
+    (f,) = lectura_ia.fallos(reg, ia)
+    assert (f["clave"], f["leyo"], f["quedo"], f["quien"]) == ("porcentaje_cc", 211, 8, "codigo")
+    assert lectura_ia.fallos(reg, {**ia, "ccf": 8}) == []          # bien puesta: nada
+    assert lectura_ia.fallos(reg, {**ia, "ccf": None}) == []       # sin «ccf» en el mensaje la pone el contrato: no se mide

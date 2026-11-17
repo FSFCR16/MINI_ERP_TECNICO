@@ -30,8 +30,9 @@ export function textoLectura(r) {
     const f = r?.lectura?.fallos
     if (!f?.length) return null
     const v = (x) => (x === null || x === undefined || x === "" ? "nada" : x)
-    const cambios = f.map((x) => `• ${x.campo}: la IA leyó ${v(x.leyo)} → quedó ${v(x.quedo)}`).join("\n")
-    return `La IA leyó distinto:\n${cambios}\n\nMensaje:\n${r.lectura.texto ?? ""}`
+    // `quien: "codigo"`: lo puso una regla del código (la comisión «ccf»), no la IA (D-381)
+    const cambios = f.map((x) => `• ${x.campo}: ${x.quien === "codigo" ? "el código puso" : "la IA leyó"} ${v(x.leyo)} → quedó ${v(x.quedo)}`).join("\n")
+    return `${f.every((x) => x.quien === "codigo") ? "Una regla del código puso" : "La IA leyó"} distinto:\n${cambios}\n\nMensaje:\n${r.lectura.texto ?? ""}`
 }
 
 export function BandejaBot({ nombre, semana, registros, hayPendientes, recargar, onAviso }) {

@@ -53,7 +53,13 @@ def fallos(reg: registrosSchemma, ia: dict[str, Any]) -> list[dict[str, Any]]:
         if campo in ("valor_efectivo", "valor_tarjeta") and not mixto:
             continue
         if not mismo(getattr(reg, campo), ia.get(kia), campo):
-            salida.append({"clave": campo, "campo": nombre, "leyo": ia.get(kia), "quedo": getattr(reg, campo)})
+            salida.append({"clave": campo, "campo": nombre, "leyo": ia.get(kia), "quedo": getattr(reg, campo),
+                           "quien": "ia"})
+    # La comisión la pone el CÓDIGO («ccf N»), no la IA: si quedó distinta, es error de la regla (24CPT, 2026-11-16:
+    # «K 211$ Ccf 8$» puso 211 y no salía en ninguna parte). Se muestra, pero no cuenta en el acierto de la IA (D-381).
+    if ia.get("ccf") is not None and not mismo(reg.porcentaje_cc, ia.get("ccf"), "porcentaje_cc"):
+        salida.append({"clave": "porcentaje_cc", "campo": "comisión tarjeta", "leyo": ia.get("ccf"),
+                       "quedo": reg.porcentaje_cc, "quien": "codigo"})
     return salida
 
 
@@ -102,7 +108,7 @@ def mal_leidos(db: Session, regs: list[registrosSchemma], limite: int = 50) -> l
 def resumen(db: Session, regs: list[registrosSchemma]) -> dict[str, Any]:
     """Acierto de la IA sobre trabajos DEFINITIVOS (no los de «Por validar») que nacieron de un mensaje."""
     ms = _mensajes(db, regs)
-    leidos, bien, por_campo = 0, 0, Counter()
+    leidos, bien, por_campo, del_codigo = 0, 0, Counter(), 0
     for r in regs:
         if r.validacion == POR_VALIDAR or not r.mensaje_id:
             continue
@@ -110,8 +116,11 @@ def resumen(db: Session, regs: list[registrosSchemma]) -> dict[str, Any]:
         if ia is None:
             continue
         leidos += 1
-        f = fallos(r, ia)
+        todos = fallos(r, ia)
+        f = [x for x in todos if x.get("quien") != "codigo"]     # el acierto es de la IA: lo del código va aparte
+        del_codigo += len(todos) - len(f)
         bien += not f
         por_campo.update(x["campo"] for x in f)
     return {"leidos": leidos, "bien": bien, "acierto": round(bien * 100 / leidos) if leidos else None,
-            "falla_mas": [{"campo": c, "veces": n} for c, n in por_campo.most_common(3)]}
+            "falla_mas": [{"campo": c, "veces": n} for c, n in por_campo.most_common(3)],
+            "errores_codigo": del_codigo}
