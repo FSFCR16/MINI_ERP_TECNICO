@@ -141,6 +141,28 @@ def test_ccf_quiere_decir_tarjeta(monkeypatch):
     assert controllers.parse_ticket_con_uso("G6 100 cash 200 card 9 ccf")[0]["tipo_pago"] == "MIXTO"   # se respeta
 
 
+MXQ4F = ("American Services\nJob: MXQ4F\nName: Sofia\nJob Type: House Lockout\nPrice: N/A\n"
+         "Address: 2505 North Palo Santo Drive\nTucson, AZ 85745\n\n{}")
+
+
+def test_si_la_ia_pierde_el_valor_lo_pone_la_ultima_linea(monkeypatch):
+    # MXQ4F del 2026-11-16: «278 cc» al final y la IA devolvió el valor vacío (1 de cada 5 veces)
+    _ia_falsa(monkeypatch, {"job_name": "MXQ4F", "valor_servicio": None, "tipo_pago": "CC"})
+    assert controllers.parse_ticket_con_uso(MXQ4F.format("278 cc"))[0]["valor_servicio"] == 278
+    for final, valor in (("$100 cash", 100), ("100$ CC", 100), ("  278.5 cc ", 278.5)):
+        assert lector.senales(MXQ4F.format(final))["valor_final"] == valor
+
+
+@pytest.mark.parametrize("final", ["278 cc 10$ parts", "8$ ccf", "300", "Tucson, AZ 85745", "278 zelle"])
+def test_la_ultima_linea_solo_cuenta_si_es_solo_el_pago(final):
+    assert lector.senales(MXQ4F.format(final))["valor_final"] is None
+
+
+def test_la_ultima_linea_nunca_pisa_lo_que_leyo_la_ia(monkeypatch):
+    _ia_falsa(monkeypatch, {"job_name": "MXQ4F", "valor_servicio": 300, "tipo_pago": "CC"})
+    assert controllers.parse_ticket_con_uso(MXQ4F.format("278 cc"))[0]["valor_servicio"] == 300
+
+
 def test_un_numero_de_job_corto_se_busca_exacto():
     from app.db import SessionLocal
     from app import servicio_bot

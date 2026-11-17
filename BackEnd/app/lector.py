@@ -11,6 +11,8 @@ Las reglas del dueño que son EXACTAS no se le preguntan a la IA: las aplica el 
   - «ccf 13» / «13 ccf»       → la comisión de la tarjeta son 13 DÓLARES, tal cual (ya NO son partes de Gil);
   - Cash App, Zelle o Venmo   → la plata la tiene Gil: es CC, pero esas apps no cobran comisión (0).
   Si dice «ccf N», ese valor manda sobre «no fee» y sobre las apps.
+  - última línea «278 cc» / «$100 cash» → si la IA dejó el valor vacío, es ese número (MXQ4F del 2026-11-16: la IA
+    lo pierde 1 de cada 5 veces cuando va suelto tras una dirección). Solo rellena el hueco: nunca pisa a la IA.
 """
 
 from __future__ import annotations
@@ -23,6 +25,9 @@ _NUM = r"(\d+(?:[.,]\d{1,2})?)"
 _APPS = re.compile(r"\b(?:cash\s*app|cashapp|zelle|venmo)\b")
 _SIN_FEE = re.compile(r"\b(?:no|sin|without|zero)\s*(?:cc\s*|card\s*|tarjeta\s*)?(?:fee|fees|ccf)\b|\bfee\s*free\b|\bfree\s+fee\b|\bnofee\b")
 _CCF = re.compile(rf"\bccf\s*[:=]?\s*\$?\s*{_NUM}(?!\s*%)|(?<![\w.]){_NUM}\s*\$?\s*ccf\b")
+# La línea final de pago, entera: «278 cc», «$100 cash», «100$ cc». Nada más en la línea, para no tomar números de
+# la dirección ni casos con partes o comisión (esos los resuelve la IA).
+_VALOR_FINAL = re.compile(rf"\$?\s*{_NUM}\s*\$?\s*(?:cc|cash)")
 _PORCENTAJE = re.compile(r"(?<![\w.])(\d{1,3}(?:[.,]\d{1,2})?)\s*%")
 
 
@@ -42,6 +47,7 @@ def senales(texto: str) -> dict[str, Any]:
     sin_fee              True si no se cobra la comisión de la tarjeta («no fee» o una app)
     ccf                  la comisión de la tarjeta en dólares, si la dijo («ccf 13»); si no, None
     porcentaje_tecnico   el % suelto (lo que se lleva el técnico); None si no hay o si hay dos distintos
+    valor_final          el número de la última línea si es SOLO el pago («278 cc», «$100 cash»); si no, None
     """
     t = norm(texto)
     app = bool(_APPS.search(t))
@@ -50,8 +56,10 @@ def senales(texto: str) -> dict[str, Any]:
     pct = next(iter(pcts)) if len(pcts) == 1 else None
     if pct is not None and not 0 <= pct <= 100:
         pct = None
+    lineas = [norm(x) for x in (texto or "").splitlines() if x.strip()]
+    final = _VALOR_FINAL.fullmatch(lineas[-1]) if lineas else None
     return {"app": app, "sin_fee": app or bool(_SIN_FEE.search(t)), "ccf": _n(m[1] or m[2]) if m else None,
-            "porcentaje_tecnico": pct}
+            "porcentaje_tecnico": pct, "valor_final": _n(final[1]) if final else None}
 
 
 def comision(senal: dict[str, Any], calculada: float) -> float:
@@ -72,7 +80,10 @@ def completa(ia: dict[str, Any], senal: dict[str, Any]) -> dict[str, Any]:
     tipo = str(ia.get("tipo_pago") or "CASH").upper()
     if (senal["app"] or senal["ccf"] is not None) and tipo == "CASH":
         tipo = "CC"
-    return {**ia, "tipo_pago": tipo, "sin_fee": senal["sin_fee"], "ccf": senal["ccf"],
+    valor = ia.get("valor_servicio")
+    if not valor and senal.get("valor_final"):      # la IA lo perdió y la última línea lo dice exacto
+        valor = senal["valor_final"]
+    return {**ia, "valor_servicio": valor, "tipo_pago": tipo, "sin_fee": senal["sin_fee"], "ccf": senal["ccf"],
             "porcentaje_tecnico": senal["porcentaje_tecnico"]}
 
 
